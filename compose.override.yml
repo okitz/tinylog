@@ -5,6 +5,7 @@ services:
       dockerfile: ./.devcontainer/Dockerfile
     volumes:
       - ./agent:/app
+      - ./common:/common
     tty: true
   server:
     build:
@@ -12,4 +13,5 @@ services:
       dockerfile: ./.devcontainer/Dockerfile
     volumes:
       - ./server:/app
+      - ./common:/common
     tty: true

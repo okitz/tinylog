@@ -9,3 +9,7 @@ require (
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 )
+
+replace github.com/okitz/mqtt-log-pipeline/common => ../common
+
+require github.com/okitz/mqtt-log-pipeline/common v0.0.0

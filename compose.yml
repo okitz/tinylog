@@ -16,6 +16,8 @@ services:
     container_name: mqtt-agent
     depends_on:
       - mqtt-broker
+    volumes:
+      - ./common:/common
     restart: unless-stopped
 
   server:
@@ -24,4 +26,6 @@ services:
     container_name: mqtt-server
     depends_on:
       - mqtt-broker
+    volumes:
+      - ./common:/common
     restart: unless-stopped
