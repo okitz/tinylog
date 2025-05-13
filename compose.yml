@@ -16,3 +16,12 @@ services:
     container_name: mqtt-agent
     depends_on:
       - mqtt-broker
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ./server
+    container_name: mqtt-server
+    depends_on:
+      - mqtt-broker
+    restart: unless-stopped

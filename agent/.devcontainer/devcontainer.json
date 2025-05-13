@@ -1,0 +1,17 @@
+{
+  "name": "MQTT Agent",
+  "dockerComposeFile": ["../../compose.yml", "../../compose.override.yml"],
+  "service": "agent",
+  "workspaceFolder": "/app",
+  "overrideCommand": true,
+  "postCreateCommand": "",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "golangci.golangci-lint",
+        "ms-vscode.go"
+      ]
+    }
+  }
+}

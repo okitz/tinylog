@@ -6,4 +6,4 @@ COPY . .
 RUN go mod tidy
 RUN go build -o agent .
 
-CMD ["./agent"]
+CMD ["./server"]

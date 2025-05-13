@@ -1,4 +1,4 @@
-module github.com/okitz/mqtt-log-pipeline/agent
+module github.com/okitz/mqtt-log-pipeline
 
 go 1.24.3
 

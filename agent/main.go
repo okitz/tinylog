@@ -12,7 +12,6 @@ func main() {
 	broker := "tcp://mosquitto:1883"
 	clientID := "agent1"
 	topic := "logs/agent1"
-	time.Sleep(10 * time.Second)
 	opts := mqtt.NewClientOptions().AddBroker(broker).SetClientID(clientID)
 	client := mqtt.NewClient(opts)
 

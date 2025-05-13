@@ -1,7 +1,15 @@
 services:
   agent:
     build:
-      context: .
+      context: ./agent
       dockerfile: ./.devcontainer/Dockerfile
+    volumes:
+      - ./agent:/app
     tty: true
-    command: sleep infinity
+  server:
+    build:
+      context: ./server
+      dockerfile: ./.devcontainer/Dockerfile
+    volumes:
+      - ./server:/app
+    tty: true

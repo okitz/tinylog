@@ -1,9 +1,10 @@
 {
-  "name": "MQTT Agent",
-  "dockerComposeFile": ["../compose.yml", "../compose.override.yml"],
-  "service": "agent",
+  "name": "MQTT Server",
+  "dockerComposeFile": ["../../compose.yml", "../../compose.override.yml"],
+  "service": "server",
   "workspaceFolder": "/app",
-  "postCreateCommand": "go mod tidy",
+  "overrideCommand": true,
+  "postCreateCommand": "",
   "customizations": {
     "vscode": {
       "extensions": [
