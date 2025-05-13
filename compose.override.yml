@@ -1,0 +1,7 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: ./.devcontainer/Dockerfile
+    tty: true
+    command: sleep infinity

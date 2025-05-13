@@ -1,0 +1,18 @@
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mqtt-broker/config:/mosquitto/config
+      - ./mqtt-broker/data:/mosquitto/data
+      - ./mqtt-broker/log:/mosquitto/log
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: ./agent
+    container_name: mqtt-agent
+    depends_on:
+      - mqtt-broker

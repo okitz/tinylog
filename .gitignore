@@ -38,4 +38,8 @@ Desktop.ini
 *.msp
 *Zone.Identifier
 
+### Mosquitto ###
+*/log/mosquitto.log
+*/data/mosquitto.db
+*/data/mosquitto-*.db
 
