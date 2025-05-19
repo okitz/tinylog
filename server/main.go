@@ -14,7 +14,10 @@ import (
 
 func main() {
 	broker := "tcp://mosquitto:1883"
-	clientID := "server1"
+	clientID := os.Getenv("MQTT_CLIENT_ID")
+	if clientID == "" {
+		clientID = "server0"
+	}
 	topic := "logs/#"
 	opts := mqtt.NewClientOptions().AddBroker(broker).SetClientID(clientID)
 	client := mqtt.NewClient(opts)

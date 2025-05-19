@@ -40,6 +40,5 @@ Desktop.ini
 
 ### Mosquitto ###
 */log/mosquitto.log
-*/data/mosquitto.db
-*/data/mosquitto-*.db
+*/data/mosquitto*.db*
 

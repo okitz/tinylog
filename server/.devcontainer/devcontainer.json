@@ -1,7 +1,7 @@
 {
   "name": "MQTT Server",
   "dockerComposeFile": ["../../compose.yml", "../../compose.override.yml"],
-  "service": "server",
+  "service": "server1",
   "workspaceFolder": "/app",
   "overrideCommand": true,
   "postCreateCommand": "",

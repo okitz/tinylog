@@ -1,3 +1,4 @@
+
 services:
   mqtt-broker:
     image: eclipse-mosquitto
@@ -10,7 +11,7 @@ services:
       - ./mqtt-broker/log:/mosquitto/log
     restart: unless-stopped
 
-  agent:
+  agent1:
     build:
       context: ./agent
     container_name: mqtt-agent
@@ -20,7 +21,7 @@ services:
       - ./common:/common
     restart: unless-stopped
 
-  server:
+  server1:
     build:
       context: ./server
     container_name: mqtt-server
