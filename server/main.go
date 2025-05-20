@@ -1,18 +1,50 @@
 package main
 
-// import (
-// 	"encoding/json"
-// 	"fmt"
-// 	"log"
-// 	"os"
-// 	"os/signal"
-// 	"time"
+import (
+	"fmt"
+	"log"
+	"os"
 
-// 	mqtt "github.com/eclipse/paho.mqtt.golang"
-// 	common "github.com/okitz/mqtt-log-pipeline/common"
-// )
+	api "github.com/okitz/mqtt-log-pipeline/api"
+	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
+)
 
-// func main() {
+func main() {
+	dir, err := os.MkdirTemp("", "log-example")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// ログの初期化
+	cfg := logpkg.Config{}
+	cfg.Segment.MaxStoreBytes = 32
+	l, err := logpkg.NewLog(dir, cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer l.Close()
+
+	// レコードを作成して追加
+	record := &api.Record{
+		Value: []byte("hello world"),
+	}
+	offset, err := l.Append(record)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// レコードを読み込み
+	readRecord, err := l.Read(offset)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// 読み込んだ値を出力
+	fmt.Printf("Read record at offset %d: %s\n", offset, string(readRecord.Value))
+}
+
+// func mmain() {
 // 	broker := "tcp://mosquitto:1883"
 // 	clientID := os.Getenv("MQTT_CLIENT_ID")
 // 	if clientID == "" {
