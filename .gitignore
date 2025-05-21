@@ -42,3 +42,10 @@ Desktop.ini
 */log/mosquitto.log
 */data/mosquitto*.db*
 
+### Executable ###
+*.exe
+*.hex
+*.uf2
+*.wasm
+*.bin
+*.elf

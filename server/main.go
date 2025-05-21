@@ -2,92 +2,175 @@ package main
 
 import (
 	"fmt"
-	"log"
+	// "machine"
+	"math/rand"
 	"os"
+	"time"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	api "github.com/okitz/mqtt-log-pipeline/api"
 	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
+
+	// "tinygo.org/x/drivers/netlink"
+	// "tinygo.org/x/drivers/netlink/probe"
+	"tinygo.org/x/tinyfs"
+	"tinygo.org/x/tinyfs/littlefs"
+)
+
+var (
+	fs      *littlefs.LFS
+	bd      *tinyfs.MemBlockDevice
+	unmount func()
 )
 
 func main() {
-	dir, err := os.MkdirTemp("", "log-example")
-	if err != nil {
-		log.Fatal(err)
+	dir := "tmp"
+	c := logpkg.Config{}
+	c.Segment.MaxStoreBytes = 32
+	if err := createFs(); err != nil {
+		fmt.Println("Error creating filesystem:", err)
+		return
 	}
-	defer os.RemoveAll(dir)
-
-	// ログの初期化
-	cfg := logpkg.Config{}
-	cfg.Segment.MaxStoreBytes = 32
-	l, err := logpkg.NewLog(dir, cfg)
+	defer unmount()
+	log, err := logpkg.NewLog(fs, dir, c)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error creating log:", err)
+		return
 	}
-	defer l.Close()
-
-	// レコードを作成して追加
-	record := &api.Record{
+	defer log.Close()
+	append := &api.Record{
 		Value: []byte("hello world"),
 	}
-	offset, err := l.Append(record)
+	off, err := log.Append(append)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error appending record:", err)
+		return
 	}
-
-	// レコードを読み込み
-	readRecord, err := l.Read(offset)
+	read, err := log.Read(off)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Error reading record:", err)
+		return
 	}
-
-	// 読み込んだ値を出力
-	fmt.Printf("Read record at offset %d: %s\n", offset, string(readRecord.Value))
+	fmt.Printf("Read record at offset %d: %s\n", off, string(read.Value))
 }
 
-// func mmain() {
-// 	broker := "tcp://mosquitto:1883"
-// 	clientID := os.Getenv("MQTT_CLIENT_ID")
-// 	if clientID == "" {
-// 		clientID = "server0"
-// 	}
-// 	topic := "logs/#"
-// 	opts := mqtt.NewClientOptions().AddBroker(broker).SetClientID(clientID)
-// 	client := mqtt.NewClient(opts)
+func createFs() error {
+	// create/format/mount the filesystem
+	bd = tinyfs.NewMemoryDevice(64, 256, 2048)
+	fs = littlefs.New(bd).Configure(&littlefs.Config{
+		//	ReadSize:      16,
+		//	ProgSize:      16,
+		//	BlockSize:     512,
+		//	BlockCount:    1024,
+		CacheSize:     128,
+		LookaheadSize: 128,
+		BlockCycles:   500,
+	})
+	if err := fs.Format(); err != nil {
+		return err
+	}
+	if err := fs.Mount(); err != nil {
+		return err
+	}
+	unmount = func() {
+		if err := fs.Unmount(); err != nil {
+			fmt.Println("Could not unmount", err)
+		}
+	}
+	sub()
+	return nil
+}
 
-// 	logfile_name := fmt.Sprintf("%s.log", time.Now().Format("2006-01-02"))
-// 	logfile, err := os.OpenFile("./log/"+logfile_name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-// 	logger := log.New(logfile, "", log.LstdFlags)
-// 	if err != nil {
-// 		log.Fatalf("Cannot open log file: %v", err)
-// 	}
-// 	defer logfile.Close()
+var (
+	ssid   string
+	pass   string
+	broker string = "tcp://mosquitto:1883"
+)
 
-// 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-// 		fmt.Println("Connection error:", token.Error())
-// 		os.Exit(1)
-// 	}
-// 	fmt.Println("Connected to MQTT broker")
+var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+	fmt.Printf("Message %s received on topic %s\n", msg.Payload(), msg.Topic())
+}
 
-// 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
-// 		fmt.Printf("Received log record: %s from topic: %s\n", msg.Payload(), msg.Topic())
-// 		var met common.Metrics
-// 		err := json.Unmarshal(msg.Payload(), &met)
-// 		if err != nil {
-// 			fmt.Println("Error unmarshalling JSON:", err)
-// 			return
-// 		}
-// 		logger.Printf("%s %s %f %f %s\n", met.Timestamp, met.SensorID, met.Temperature, met.Illuminance, met.Status)
-// 	}
+var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
+	fmt.Println("Connected")
+}
 
-// 	// Subscribe to the topic
-// 	if token := client.Subscribe(topic, 1, messageHandler); token.Wait() && token.Error() != nil {
-// 		fmt.Println("Subscription error:", token.Error())
-// 		os.Exit(1)
-// 	}
-// 	fmt.Println("Subscribed to topic:", topic)
+var connectionLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
+	fmt.Printf("Connection Lost: %s\n", err.Error())
+}
 
-// 	sig := make(chan os.Signal, 1)
-// 	signal.Notify(sig, os.Interrupt)
-// 	<-sig
-// 	fmt.Println("Exiting...")
+func sub() {
+	// link, _ := probe.Probe()
+
+	// err := link.NetConnect(&netlink.ConnectParams{
+	// 	Ssid:       ssid,
+	// 	Passphrase: pass,
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	clientId := os.Getenv("MQTT_CLIENT_ID")
+	if clientId == "" {
+		clientId = "server0"
+	}
+
+	fmt.Printf("ClientId: %s\n", clientId)
+
+	options := mqtt.NewClientOptions()
+	options.AddBroker(broker)
+	options.SetClientID(clientId)
+	options.SetDefaultPublishHandler(messagePubHandler)
+	options.OnConnect = connectHandler
+	options.OnConnectionLost = connectionLostHandler
+
+	fmt.Printf("Connecting to MQTT broker at %s\n", broker)
+	client := mqtt.NewClient(options)
+	token := client.Connect()
+	if token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+
+	topic := "log/#"
+	token = client.Subscribe(topic, 1, nil)
+	if token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+	fmt.Printf("Subscribed to topic %s\n", topic)
+
+	for i := 0; i < 10; i++ {
+		freq := float32(1) / 1000000
+		payload := fmt.Sprintf("%.02fMhz", freq)
+		token = client.Publish(topic, 0, false, payload)
+		if token.Wait() && token.Error() != nil {
+			panic(token.Error())
+		}
+		time.Sleep(time.Second)
+	}
+
+	client.Disconnect(100)
+
+	for {
+		select {}
+	}
+}
+
+// Returns an int >= min, < max
+func randomInt(min, max int) int {
+	return min + rand.Intn(max-min)
+}
+
+// Generate a random string of A-Z chars with len = l
+func randomString(len int) string {
+	bytes := make([]byte, len)
+	for i := 0; i < len; i++ {
+		bytes[i] = byte(randomInt(65, 90))
+	}
+	return string(bytes)
+}
+
+// Wait for user to open serial console
+// func waitSerial() {
+// 	for !machine.Serial.DTR() {
+// 		time.Sleep(100 * time.Millisecond)
+// 	}
 // }

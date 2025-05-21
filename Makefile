@@ -5,3 +5,6 @@ compile:
 
 test:
 	go test -race ./...
+
+tinybuild:
+	tinygo build -target=challenger-rp2040 -o=./server/main.uf2 ./server/main.go 
