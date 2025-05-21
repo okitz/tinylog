@@ -104,7 +104,7 @@ func (s *segment) ToBeMaxed(record *api.Record) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return s.store.size+uint64(len(p)) >= s.config.Segment.MaxStoreBytes ||
+	return s.store.size+lenWidth+uint64(len(p)) >= s.config.Segment.MaxStoreBytes ||
 		s.index.IsMaxed(), nil
 }
 
