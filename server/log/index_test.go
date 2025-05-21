@@ -46,7 +46,7 @@ func TestIndex(t *testing.T) {
 	// index and scanner should error when reading past existing entries
 	_, _, err = idx.Read(int64(len(entries)))
 	require.Equal(t, io.EOF, err)
-	_ = idx.Close()
+	_ = idx.Sync()
 
 	// index should build its state from the existing file
 	f, _ = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)

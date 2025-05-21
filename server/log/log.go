@@ -33,8 +33,8 @@ func NewLog(fs *littlefs.LFS, dirStr string, c Config) (*Log, error) {
 	if c.Segment.MaxIndexBytes == 0 {
 		c.Segment.MaxIndexBytes = 1024
 	}
-	fs.Mkdir(dirStr, 0755)
-	dir, err := filesys.OpenFile(fs, dirStr, os.O_RDWR|os.O_CREATE|os.O_TRUNC)
+	fs.Mkdir(dirStr, 0000)
+	dir, err := filesys.OpenFile(fs, dirStr, os.O_RDWR|os.O_CREATE)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,6 @@ func NewLog(fs *littlefs.LFS, dirStr string, c Config) (*Log, error) {
 
 func (l *Log) setup() error {
 	files, err := l.Dir.Readdir(0)
-	fmt.Println("files", files)
 	if err != nil {
 		return err
 	}
@@ -91,7 +90,9 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if l.activeSegment.IsMaxed() {
+	if flag, err := l.activeSegment.ToBeMaxed(record); err != nil {
+		return 0, err
+	} else if flag {
 		err = l.newSegment(highestOffset + 1)
 		if err != nil {
 			return 0, err
@@ -123,7 +124,7 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
 }
 
 func (l *Log) newSegment(off uint64) error {
-	s, err := newSegment(l.Fs, off, l.Config)
+	s, err := newSegment(l.Fs, l.Dir.Name(), off, l.Config)
 	if err != nil {
 		return err
 	}
@@ -140,23 +141,23 @@ func (l *Log) Close() error {
 			return err
 		}
 	}
+	if err := l.Dir.Close(); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (l *Log) Remove() error {
-	if err := l.Close(); err != nil {
+	if err := l.activeSegment.Sync(); err != nil {
 		return err
 	}
-	files, err := l.Dir.Readdir(0)
-	fmt.Println("files", files)
-	if err != nil {
-		return err
-	}
-	for _, file := range files {
-		if err := l.Fs.Remove(file.Name()); err != nil {
+	for _, segment := range l.segments {
+		if err := segment.Remove(); err != nil {
 			return err
 		}
-
+	}
+	if err := l.Dir.Close(); err != nil {
+		return err
 	}
 	return nil
 }

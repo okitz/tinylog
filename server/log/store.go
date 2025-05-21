@@ -90,10 +90,7 @@ func (s *store) ReadAt(p []byte, off int64) (int, error) {
 	return len(p), nil
 }
 
-func (s *store) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *store) sync() error {
 	if s.size > s.initialSize {
 		appendData := s.data[s.initialSize:s.size]
 		if _, err := s.file.Write(appendData); err != nil {
@@ -101,9 +98,26 @@ func (s *store) Close() error {
 		}
 
 	}
-	// if err := s.file.Sync(); err != nil {
-	// 	return err
-	// }
+	s.initialSize = s.size
+	if err := s.file.Sync(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *store) Sync() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sync()
+}
+
+func (s *store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.sync(); err != nil {
+		return err
+	}
 	return s.file.Close()
 }
 

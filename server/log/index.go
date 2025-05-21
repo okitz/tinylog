@@ -42,23 +42,6 @@ func newIndex(f *littlefs.File, c Config) (*index, error) {
 	}, nil
 }
 
-// TODO: グレースフルでないシャットダウン
-func (i *index) Close() error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	if i.size > i.initialSize {
-		appendData := i.data[i.initialSize:i.size]
-		if _, err := i.file.Write(appendData); err != nil {
-			return err
-		}
-	}
-	// if err := i.file.Sync(); err != nil {
-	// 	return err
-	// }
-	return i.file.Close()
-}
-
 func (i *index) Read(in int64) (out uint32, pos uint64, err error) {
 	if i.size == 0 {
 		return 0, 0, io.EOF
@@ -93,6 +76,38 @@ func (i *index) Write(off uint32, pos uint64) error {
 
 func (i *index) IsMaxed() bool {
 	return uint64(len(i.data)) < i.size+entWidth
+}
+
+func (i *index) sync() error {
+	if i.size > i.initialSize {
+		appendData := i.data[i.initialSize:i.size]
+		if _, err := i.file.Write(appendData); err != nil {
+			return err
+		}
+
+	}
+	i.initialSize = i.size
+	if err := i.file.Sync(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (i *index) Sync() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.sync()
+}
+
+// TODO: グレースフルでないシャットダウン
+func (i *index) Close() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if err := i.sync(); err != nil {
+		return err
+	}
+	return i.file.Close()
 }
 
 func (i *index) Name() string {

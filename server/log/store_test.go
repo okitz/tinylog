@@ -32,12 +32,12 @@ func TestStoreAppendRead(t *testing.T) {
 	testAppend(t, s)
 	testRead(t, s)
 	testReadAt(t, s)
-	s.Close()
+	s.Sync()
 
-	f, err = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
-	s, err = newStore(f, c)
+	f, _ = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	s2, err := newStore(f, c)
 	require.NoError(t, err)
-	testRead(t, s)
+	testRead(t, s2)
 }
 
 func testAppend(t *testing.T, s *store) {

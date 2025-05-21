@@ -1,7 +1,9 @@
 package log
 
 import (
+	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	api "github.com/okitz/mqtt-log-pipeline/api"
@@ -15,12 +17,12 @@ func TestLog(t *testing.T) {
 		"append and read a record succeeds": testAppendRead,
 		"offset out of range error":         testOutOfRangeErr,
 		"init with existing segments":       testInitExisting,
-		// "reader":                            testReader,
-		// "truncate":                          testTruncate,
+		"reader":                            testReader,
+		"truncate":                          testTruncate,
+		"remove":                            testRemove,
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := "tmp"
-			// defer os.RemoveAll(dir)
 
 			c := Config{}
 			c.Segment.MaxStoreBytes = 32
@@ -31,6 +33,32 @@ func TestLog(t *testing.T) {
 
 			fn(t, log)
 		})
+	}
+}
+
+func lscmd(argv []string) {
+	path := "/"
+	if len(argv) > 1 {
+		path = strings.TrimSpace(argv[1])
+	}
+	dir, err := fs.Open(path)
+	if err != nil {
+		fmt.Printf("Could not open directory %s: %v\n", path, err)
+		return
+	}
+	defer dir.Close()
+	infos, err := dir.Readdir(0)
+	_ = infos
+	if err != nil {
+		fmt.Printf("Could not read directory %s: %v\n", path, err)
+		return
+	}
+	for _, info := range infos {
+		s := "-rwxrwxrwx"
+		if info.IsDir() {
+			s = "drwxrwxrwx"
+		}
+		fmt.Printf("%s %5d %s\n", s, info.Size(), info.Name())
 	}
 }
 
@@ -63,22 +91,23 @@ func testInitExisting(t *testing.T, o *Log) {
 	}
 	require.NoError(t, o.Close())
 
-	// off, err := o.LowestOffset()
-	// require.NoError(t, err)
-	// require.Equal(t, uint64(0), off)
-	// off, err = o.HighestOffset()
-	// require.NoError(t, err)
-	// require.Equal(t, uint64(2), off)
+	off, err := o.LowestOffset()
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), off)
+	off, err = o.HighestOffset()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), off)
 
-	// n, err := NewLog(fs, o.Dir.Name(), o.Config)
-	// require.NoError(t, err)
+	n, err := NewLog(fs, o.Dir.Name(), o.Config)
+	require.NoError(t, err)
+	off, err = n.LowestOffset()
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), off)
+	off, err = n.HighestOffset()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), off)
+	// lscmd([]string{"ls", "tmp"})
 
-	// // off, err = n.LowestOffset()
-	// // require.NoError(t, err)
-	// // require.Equal(t, uint64(0), off)
-	// // off, err = n.HighestOffset()
-	// // require.NoError(t, err)
-	// // require.Equal(t, uint64(2), off)
 }
 
 func testReader(t *testing.T, log *Log) {
@@ -112,5 +141,20 @@ func testTruncate(t *testing.T, log *Log) {
 	require.NoError(t, err)
 
 	_, err = log.Read(0)
+	require.Error(t, err)
+}
+
+func testRemove(t *testing.T, log *Log) {
+	append := &api.Record{
+		Value: []byte("hello world"),
+	}
+	for i := 0; i < 3; i++ {
+		_, err := log.Append(append)
+		require.NoError(t, err)
+	}
+	err := log.Remove()
+	require.NoError(t, err)
+
+	err = log.Close()
 	require.Error(t, err)
 }

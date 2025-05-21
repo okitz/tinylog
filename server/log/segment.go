@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	api "github.com/okitz/mqtt-log-pipeline/api"
 	"github.com/okitz/mqtt-log-pipeline/server/filesys"
@@ -15,16 +16,20 @@ type segment struct {
 	baseOffset, nextOffset uint64
 	config                 Config
 	fs                     *littlefs.LFS
+	dirname                string
+	closed                 bool
 }
 
-func newSegment(fs *littlefs.LFS, baseOffset uint64, c Config) (*segment, error) {
+func newSegment(fs *littlefs.LFS, dirname string, baseOffset uint64, c Config) (*segment, error) {
 	s := &segment{
 		baseOffset: baseOffset,
 		config:     c,
 		fs:         fs,
+		dirname:    dirname,
+		closed:     false,
 	}
 	storeFile, err := filesys.OpenFile(fs,
-		fmt.Sprintf("%d%s", baseOffset, ".store"),
+		filepath.Join(dirname, fmt.Sprintf("%d%s", baseOffset, ".store")),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
 	)
 	if err != nil {
@@ -34,7 +39,7 @@ func newSegment(fs *littlefs.LFS, baseOffset uint64, c Config) (*segment, error)
 		return nil, err
 	}
 	indexFile, err := filesys.OpenFile(fs,
-		fmt.Sprintf("%d%s", baseOffset, ".index"),
+		filepath.Join(dirname, fmt.Sprintf("%d%s", baseOffset, ".index")),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
 	)
 
@@ -94,20 +99,48 @@ func (s *segment) IsMaxed() bool {
 		s.index.IsMaxed()
 }
 
+func (s *segment) ToBeMaxed(record *api.Record) (bool, error) {
+	p, err := record.MarshalVT()
+	if err != nil {
+		return false, err
+	}
+	return s.store.size+uint64(len(p)) >= s.config.Segment.MaxStoreBytes ||
+		s.index.IsMaxed(), nil
+}
+
 func (s *segment) Remove() error {
+	if s.closed {
+		return fmt.Errorf("segment %d already closed", s.baseOffset)
+	}
 	if err := s.Close(); err != nil {
 		return err
 	}
-	if err := s.fs.Remove(s.index.Name()); err != nil {
+	s.closed = true
+	indexPath := filepath.Join(s.dirname, fmt.Sprintf("%d%s", s.baseOffset, ".index"))
+	storePath := filepath.Join(s.dirname, fmt.Sprintf("%d%s", s.baseOffset, ".store"))
+	if err := s.fs.Remove(indexPath); err != nil {
 		return err
 	}
-	if err := s.fs.Remove(s.store.Name()); err != nil {
+	if err := s.fs.Remove(storePath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *segment) Sync() error {
+	if err := s.store.Sync(); err != nil {
+		return err
+	}
+	if err := s.index.Sync(); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *segment) Close() error {
+	if s.closed {
+		return fmt.Errorf("segment %d already closed", s.baseOffset)
+	}
 	if err := s.index.Close(); err != nil {
 		return err
 	}
