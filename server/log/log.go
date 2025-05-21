@@ -11,26 +11,35 @@ import (
 	"sync"
 
 	api "github.com/okitz/mqtt-log-pipeline/api"
+	"github.com/okitz/mqtt-log-pipeline/server/filesys"
+	"tinygo.org/x/tinyfs/littlefs"
 )
 
 type Log struct {
 	mu sync.RWMutex
 
-	Dir    string
+	Fs     *littlefs.LFS
+	Dir    *littlefs.File
 	Config Config
 
 	activeSegment *segment
 	segments      []*segment
 }
 
-func NewLog(dir string, c Config) (*Log, error) {
+func NewLog(fs *littlefs.LFS, dirStr string, c Config) (*Log, error) {
 	if c.Segment.MaxStoreBytes == 0 {
 		c.Segment.MaxStoreBytes = 1024
 	}
 	if c.Segment.MaxIndexBytes == 0 {
 		c.Segment.MaxIndexBytes = 1024
 	}
+	fs.Mkdir(dirStr, 0755)
+	dir, err := filesys.OpenFile(fs, dirStr, os.O_RDWR|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		return nil, err
+	}
 	l := &Log{
+		Fs:     fs,
 		Dir:    dir,
 		Config: c,
 	}
@@ -39,7 +48,8 @@ func NewLog(dir string, c Config) (*Log, error) {
 }
 
 func (l *Log) setup() error {
-	files, err := os.ReadDir(l.Dir)
+	files, err := l.Dir.Readdir(0)
+	fmt.Println("files", files)
 	if err != nil {
 		return err
 	}
@@ -76,12 +86,21 @@ func (l *Log) setup() error {
 func (l *Log) Append(record *api.Record) (uint64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	off, err := l.activeSegment.Append(record)
+
+	highestOffset, err := l.highestOffset()
 	if err != nil {
 		return 0, err
 	}
 	if l.activeSegment.IsMaxed() {
-		err = l.newSegment(off + 1)
+		err = l.newSegment(highestOffset + 1)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	off, err := l.activeSegment.Append(record)
+	if err != nil {
+		return 0, err
 	}
 	return off, err
 }
@@ -104,7 +123,7 @@ func (l *Log) Read(off uint64) (*api.Record, error) {
 }
 
 func (l *Log) newSegment(off uint64) error {
-	s, err := newSegment(l.Dir, off, l.Config)
+	s, err := newSegment(l.Fs, off, l.Config)
 	if err != nil {
 		return err
 	}
@@ -128,7 +147,18 @@ func (l *Log) Remove() error {
 	if err := l.Close(); err != nil {
 		return err
 	}
-	return os.RemoveAll(l.Dir)
+	files, err := l.Dir.Readdir(0)
+	fmt.Println("files", files)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if err := l.Fs.Remove(file.Name()); err != nil {
+			return err
+		}
+
+	}
+	return nil
 }
 
 func (l *Log) Reset() error {
@@ -144,14 +174,19 @@ func (l *Log) LowestOffset() (uint64, error) {
 	return l.segments[0].baseOffset, nil
 }
 
-func (l *Log) HighestOffset() (uint64, error) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+// ロックなしで呼び出せるPrivateメソッド
+func (l *Log) highestOffset() (uint64, error) {
 	off := l.segments[len(l.segments)-1].nextOffset
 	if off == 0 {
 		return 0, nil
 	}
 	return off - 1, nil
+}
+
+func (l *Log) HighestOffset() (uint64, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.highestOffset()
 }
 
 func (l *Log) Truncate(lowest uint64) error {

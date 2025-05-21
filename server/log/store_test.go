@@ -4,27 +4,38 @@ import (
 	"os"
 	"testing"
 
+	filesys "github.com/okitz/mqtt-log-pipeline/server/filesys"
 	"github.com/stretchr/testify/require"
+	"tinygo.org/x/tinyfs"
+	"tinygo.org/x/tinyfs/littlefs"
 )
 
 var (
-	write = []byte("hello world")
+	write = []byte("hello world!")
 	width = uint64(len(write)) + lenWidth
 )
 
 func TestStoreAppendRead(t *testing.T) {
-	f, err := os.CreateTemp("", "store_append_read_test")
+	createTestFS(t)
+	defer unmount()
+	require.NotNil(t, fs)
+	tgt := "file1.store"
+	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	require.NotNil(t, f)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
 
-	s, err := newStore(f)
+	c := Config{}
+	c.Segment.MaxStoreBytes = 1024
+	s, err := newStore(f, c)
+	require.NotNil(t, s)
 	require.NoError(t, err)
-
 	testAppend(t, s)
 	testRead(t, s)
 	testReadAt(t, s)
+	s.Close()
 
-	s, err = newStore(f)
+	f, err = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	s, err = newStore(f, c)
 	require.NoError(t, err)
 	testRead(t, s)
 }
@@ -69,37 +80,71 @@ func testReadAt(t *testing.T, s *store) {
 }
 
 func TestStoreClose(t *testing.T) {
-	f, err := os.CreateTemp("", "store_close_test")
+	createTestFS(t)
+	defer unmount()
+	require.NotNil(t, fs)
+	tgt := "file1.txt"
+	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	defer f.Close()
+	require.NotNil(t, f)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	s, err := newStore(f)
+
+	c := Config{}
+	c.Segment.MaxStoreBytes = 1024
+	s, err := newStore(f, c)
 	require.NoError(t, err)
 	_, _, err = s.Append(write)
 	require.NoError(t, err)
 
-	f, beforeSize, err := openFile(f.Name())
+	beforeSize, err := openFile(fs)
 	require.NoError(t, err)
 
 	err = s.Close()
 	require.NoError(t, err)
 
-	_, afterSize, err := openFile(f.Name())
+	afterSize, err := openFile(fs)
 	require.NoError(t, err)
 	require.True(t, afterSize > beforeSize)
 }
 
-func openFile(name string) (file *os.File, size int64, err error) {
-	f, err := os.OpenFile(
-		name,
-		os.O_RDWR|os.O_CREATE|os.O_APPEND,
-		0644,
-	)
-	if err != nil {
-		return nil, 0, err
-	}
+func openFile(fs *littlefs.LFS) (size int64, err error) {
+	tgt := "file1.txt"
+	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
 	fi, err := f.Stat()
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
-	return f, fi.Size(), nil
+	size = fi.Size()
+	return size, nil
+}
+
+var (
+	fs      *littlefs.LFS
+	bd      *tinyfs.MemBlockDevice
+	unmount func()
+)
+
+func createTestFS(t *testing.T) {
+	// create/format/mount the filesystem
+	bd = tinyfs.NewMemoryDevice(64, 256, 2048)
+	fs = littlefs.New(bd).Configure(&littlefs.Config{
+		//	ReadSize:      16,
+		//	ProgSize:      16,
+		//	BlockSize:     512,
+		//	BlockCount:    1024,
+		CacheSize:     128,
+		LookaheadSize: 128,
+		BlockCycles:   500,
+	})
+	if err := fs.Format(); err != nil {
+		t.Error("Could not format", err)
+	}
+	if err := fs.Mount(); err != nil {
+		t.Error("Could not mount", err)
+	}
+	unmount = func() {
+		if err := fs.Unmount(); err != nil {
+			t.Error("Could not ummount", err)
+		}
+	}
 }

@@ -1,10 +1,11 @@
 package log
 
 import (
-	"bufio"
 	"encoding/binary"
-	"os"
+	"io"
 	"sync"
+
+	"tinygo.org/x/tinyfs/littlefs"
 )
 
 var (
@@ -16,22 +17,31 @@ const (
 )
 
 type store struct {
-	*os.File
-	mu   sync.Mutex
-	buf  *bufio.Writer
-	size uint64
+	file        *littlefs.File
+	mu          sync.Mutex
+	data        []byte
+	initialSize uint64
+	size        uint64
 }
 
-func newStore(f *os.File) (*store, error) {
-	fi, err := os.Stat(f.Name())
+func newStore(f *littlefs.File, c Config) (*store, error) {
+	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
-	size := uint64(fi.Size())
+	initialSize := uint64(fi.Size())
+	data := make([]byte, c.Segment.MaxStoreBytes)
+	if initialSize > 0 {
+		if _, err := f.Read(data); err != nil {
+			return nil, err
+		}
+	}
+
 	return &store{
-		File: f,
-		size: size,
-		buf:  bufio.NewWriter(f),
+		file:        f,
+		data:        data,
+		initialSize: initialSize,
+		size:        initialSize,
 	}, nil
 }
 
@@ -39,51 +49,64 @@ func (s *store) Append(p []byte) (n uint64, pos uint64, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	pos = s.size
-	if err := binary.Write(s.buf, enc, uint64(len(p))); err != nil {
-		return 0, 0, err
-	}
-	w, err := s.buf.Write(p)
-	if err != nil {
-		return 0, 0, err
-	}
-	w += lenWidth
-	s.size += uint64(w)
-	return uint64(w), pos, nil
+
+	valueHead := s.size + lenWidth
+	valueTail := valueHead + uint64(len(p))
+
+	enc.PutUint64(s.data[s.size:valueHead], uint64(len(p)))
+	copy(s.data[valueHead:valueTail], p)
+
+	w := uint64(len(p)) + lenWidth
+	s.size += w
+	return w, pos, nil
 }
 
 func (s *store) Read(pos uint64) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.buf.Flush(); err != nil {
-		return nil, err
-	}
-	size := make([]byte, lenWidth)
-	if _, err := s.File.ReadAt(size, int64(pos)); err != nil {
-		return nil, err
-	}
-	b := make([]byte, enc.Uint64(size))
-	if _, err := s.File.ReadAt(b, int64(pos+lenWidth)); err != nil {
-		return nil, err
-	}
 
-	return b, nil
+	valueHead := pos + lenWidth
+	if valueHead > s.size {
+		return nil, io.ErrUnexpectedEOF
+	}
+	size := enc.Uint64(s.data[pos:valueHead])
+	copyBuf := make([]byte, size)
+	copy(copyBuf, s.data[valueHead:valueHead+size])
+	return copyBuf, nil
 }
 
 func (s *store) ReadAt(p []byte, off int64) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.buf.Flush(); err != nil {
-		return 0, err
+
+	uoff := uint64(off)
+	uendOff := uoff + uint64(len(p))
+	if uendOff > s.size {
+		copy(p, s.data[uoff:s.size])
+		return int(s.size - uoff), io.EOF
 	}
-	return s.File.ReadAt(p, off)
+
+	copy(p, s.data[uoff:uendOff])
+	return len(p), nil
 }
 
 func (s *store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	err := s.buf.Flush()
-	if err != nil {
-		return err
+
+	if s.size > s.initialSize {
+		appendData := s.data[s.initialSize:s.size]
+		if _, err := s.file.Write(appendData); err != nil {
+			return err
+		}
+
 	}
-	return s.File.Close()
+	// if err := s.file.Sync(); err != nil {
+	// 	return err
+	// }
+	return s.file.Close()
+}
+
+func (s *store) Name() string {
+	return s.file.Name()
 }

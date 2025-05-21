@@ -5,13 +5,18 @@ import (
 	"os"
 	"testing"
 
+	filesys "github.com/okitz/mqtt-log-pipeline/server/filesys"
 	"github.com/stretchr/testify/require"
 )
 
 func TestIndex(t *testing.T) {
-	f, err := os.CreateTemp(os.TempDir(), "index_test")
+	createTestFS(t)
+	defer unmount()
+
+	tgt := "file1.index"
+	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	require.NotNil(t, f)
 	require.NoError(t, err)
-	defer os.Remove(f.Name())
 
 	c := Config{}
 	c.Segment.MaxIndexBytes = 1024
@@ -44,7 +49,7 @@ func TestIndex(t *testing.T) {
 	_ = idx.Close()
 
 	// index should build its state from the existing file
-	f, _ = os.OpenFile(f.Name(), os.O_RDWR, 0600)
+	f, _ = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
 	idx, err = newIndex(f, c)
 	require.NoError(t, err)
 	off, pos, err := idx.Read(-1)

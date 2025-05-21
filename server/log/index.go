@@ -2,9 +2,9 @@ package log
 
 import (
 	"io"
-	"os"
+	"sync"
 
-	"github.com/tysonmote/gommap"
+	"tinygo.org/x/tinyfs/littlefs"
 )
 
 const (
@@ -14,49 +14,48 @@ const (
 )
 
 type index struct {
-	file *os.File
-	mmap gommap.MMap
-	size uint64
+	file        *littlefs.File
+	mu          sync.Mutex
+	data        []byte
+	initialSize uint64
+	size        uint64
 }
 
-func newIndex(f *os.File, c Config) (*index, error) {
-	idx := &index{
-		file: f,
-	}
-	fi, err := os.Stat(f.Name())
+func newIndex(f *littlefs.File, c Config) (*index, error) {
+	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
-	idx.size = uint64(fi.Size())
-	if err = os.Truncate(
-		f.Name(), int64(c.Segment.MaxIndexBytes),
-	); err != nil {
-		return nil, err
+	initialSize := uint64(fi.Size())
+	data := make([]byte, c.Segment.MaxIndexBytes)
+	if initialSize > 0 {
+		if _, err := f.Read(data); err != nil {
+			return nil, err
+		}
 	}
-	if idx.mmap, err = gommap.Map(
-		idx.file.Fd(),
-		gommap.PROT_READ|gommap.PROT_WRITE,
-		gommap.MAP_SHARED,
-	); err != nil {
-		return nil, err
-	}
-	return idx, nil
+
+	return &index{
+		file:        f,
+		data:        data,
+		initialSize: initialSize,
+		size:        initialSize,
+	}, nil
 }
 
 // TODO: グレースフルでないシャットダウン
 func (i *index) Close() error {
-	if err := i.mmap.Sync(gommap.MS_SYNC); err != nil {
-		return err
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if i.size > i.initialSize {
+		appendData := i.data[i.initialSize:i.size]
+		if _, err := i.file.Write(appendData); err != nil {
+			return err
+		}
 	}
-	if err := i.mmap.UnsafeUnmap(); err != nil {
-		return err
-	}
-	if err := i.file.Sync(); err != nil {
-		return err
-	}
-	if err := i.file.Truncate(int64(i.size)); err != nil {
-		return err
-	}
+	// if err := i.file.Sync(); err != nil {
+	// 	return err
+	// }
 	return i.file.Close()
 }
 
@@ -73,26 +72,31 @@ func (i *index) Read(in int64) (out uint32, pos uint64, err error) {
 	if i.size < pos+entWidth {
 		return 0, 0, io.EOF
 	}
-	out = enc.Uint32(i.mmap[pos : pos+offWidth])
-	pos = enc.Uint64(i.mmap[pos+offWidth : pos+entWidth])
+	out = enc.Uint32(i.data[pos : pos+offWidth])
+	pos = enc.Uint64(i.data[pos+offWidth : pos+entWidth])
 	return out, pos, nil
 }
 
 func (i *index) Write(off uint32, pos uint64) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	if i.IsMaxed() {
 		return io.EOF
 	}
-	enc.PutUint32(i.mmap[i.size:i.size+offWidth], off)
-	enc.PutUint64(i.mmap[i.size+offWidth:i.size+entWidth], pos)
+
+	enc.PutUint32(i.data[i.size:i.size+offWidth], off)
+	enc.PutUint64(i.data[i.size+offWidth:i.size+entWidth], pos)
 	i.size += uint64(entWidth)
 	return nil
 
 }
 
 func (i *index) IsMaxed() bool {
-	return uint64(len(i.mmap)) < i.size+entWidth
+	return uint64(len(i.data)) < i.size+entWidth
 }
 
 func (i *index) Name() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
 	return i.file.Name()
 }

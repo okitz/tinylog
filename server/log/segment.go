@@ -3,10 +3,10 @@ package log
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	api "github.com/okitz/mqtt-log-pipeline/api"
-	"google.golang.org/protobuf/proto"
+	"github.com/okitz/mqtt-log-pipeline/server/filesys"
+	"tinygo.org/x/tinyfs/littlefs"
 )
 
 type segment struct {
@@ -14,28 +14,28 @@ type segment struct {
 	index                  *index
 	baseOffset, nextOffset uint64
 	config                 Config
+	fs                     *littlefs.LFS
 }
 
-func newSegment(dir string, baseOffset uint64, c Config) (*segment, error) {
+func newSegment(fs *littlefs.LFS, baseOffset uint64, c Config) (*segment, error) {
 	s := &segment{
 		baseOffset: baseOffset,
 		config:     c,
+		fs:         fs,
 	}
-	storeFile, err := os.OpenFile(
-		filepath.Join(dir, fmt.Sprintf("%d%s", baseOffset, ".store")),
+	storeFile, err := filesys.OpenFile(fs,
+		fmt.Sprintf("%d%s", baseOffset, ".store"),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
-		0644,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if s.store, err = newStore(storeFile); err != nil {
+	if s.store, err = newStore(storeFile, c); err != nil {
 		return nil, err
 	}
-	indexFile, err := os.OpenFile(
-		filepath.Join(dir, fmt.Sprintf("%d%s", baseOffset, ".index")),
+	indexFile, err := filesys.OpenFile(fs,
+		fmt.Sprintf("%d%s", baseOffset, ".index"),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
-		0644,
 	)
 
 	if err != nil {
@@ -55,7 +55,7 @@ func newSegment(dir string, baseOffset uint64, c Config) (*segment, error) {
 func (s *segment) Append(record *api.Record) (offset uint64, err error) {
 	cur := s.nextOffset
 	record.Offset = cur
-	p, err := proto.Marshal(record)
+	p, err := record.MarshalVT()
 	if err != nil {
 		return 0, err
 	}
@@ -84,7 +84,7 @@ func (s *segment) Read(off uint64) (*api.Record, error) {
 		return nil, err
 	}
 	record := &api.Record{}
-	err = proto.Unmarshal(p, record)
+	err = record.UnmarshalVT(p)
 	return record, err
 }
 
@@ -98,10 +98,10 @@ func (s *segment) Remove() error {
 	if err := s.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(s.index.Name()); err != nil {
+	if err := s.fs.Remove(s.index.Name()); err != nil {
 		return err
 	}
-	if err := os.Remove(s.store.Name()); err != nil {
+	if err := s.fs.Remove(s.store.Name()); err != nil {
 		return err
 	}
 	return nil
