@@ -9,16 +9,16 @@ services:
       - ./mqtt-broker/config:/mosquitto/config
       - ./mqtt-broker/data:/mosquitto/data
       - ./mqtt-broker/log:/mosquitto/log
-    restart: unless-stopped
+    # restart: unless-stopped
 
   agent1:
     build:
       context: ./agent
-    container_name: mqtt-agent
+    container_name: mqtt-agent1
     depends_on:
       - mqtt-broker
     volumes:
-      - ./common:/common
+      - ./api:/api
     restart: unless-stopped
 
   server1:
@@ -28,5 +28,5 @@ services:
     depends_on:
       - mqtt-broker
     volumes:
-      - ./common:/common
-    restart: unless-stopped
+      - ./api:/api
+    # restart: unless-stopped

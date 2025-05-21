@@ -1,15 +1,18 @@
 module github.com/okitz/mqtt-log-pipeline/agent
 
-go 1.24.3
+go 1.24
 
-require github.com/eclipse/paho.mqtt.golang v1.5.0
+replace github.com/okitz/mqtt-log-pipeline/api => ../api
 
 require (
+	github.com/eclipse/paho.mqtt.golang v1.5.0
+	github.com/okitz/mqtt-log-pipeline/api v0.0.0-00010101000000-000000000000
+)
+
+require (
+	github.com/aperturerobotics/json-iterator-lite v1.0.0 // indirect
+	github.com/aperturerobotics/protobuf-go-lite v0.9.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 )
-
-replace github.com/okitz/mqtt-log-pipeline/common => ../common
-
-require github.com/okitz/mqtt-log-pipeline/common v0.0.0

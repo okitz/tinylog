@@ -3,16 +3,15 @@ package main
 import (
 	"fmt"
 	// "machine"
-	"math/rand"
+
 	"os"
-	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	api "github.com/okitz/mqtt-log-pipeline/api"
-	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
 
 	// "tinygo.org/x/drivers/netlink"
 	// "tinygo.org/x/drivers/netlink/probe"
+	api "github.com/okitz/mqtt-log-pipeline/api"
+	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )
@@ -21,18 +20,22 @@ var (
 	fs      *littlefs.LFS
 	bd      *tinyfs.MemBlockDevice
 	unmount func()
+	broker  string = "tcp://mosquitto:1883"
+	log     *logpkg.Log
 )
 
 func main() {
 	dir := "tmp"
 	c := logpkg.Config{}
-	c.Segment.MaxStoreBytes = 32
-	if err := createFs(); err != nil {
+	c.Segment.MaxStoreBytes = 1024
+	c.Segment.MaxIndexBytes = 1024
+	err := createFs()
+	if err != nil {
 		fmt.Println("Error creating filesystem:", err)
 		return
 	}
 	defer unmount()
-	log, err := logpkg.NewLog(fs, dir, c)
+	log, err = logpkg.NewLog(fs, dir, c)
 	if err != nil {
 		fmt.Println("Error creating log:", err)
 		return
@@ -52,6 +55,8 @@ func main() {
 		return
 	}
 	fmt.Printf("Read record at offset %d: %s\n", off, string(read.Value))
+	sub()
+
 }
 
 func createFs() error {
@@ -77,18 +82,7 @@ func createFs() error {
 			fmt.Println("Could not unmount", err)
 		}
 	}
-	sub()
 	return nil
-}
-
-var (
-	ssid   string
-	pass   string
-	broker string = "tcp://mosquitto:1883"
-)
-
-var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	fmt.Printf("Message %s received on topic %s\n", msg.Payload(), msg.Topic())
 }
 
 var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
@@ -97,6 +91,36 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 
 var connectionLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
 	fmt.Printf("Connection Lost: %s\n", err.Error())
+}
+
+var messageHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+	payload := msg.Payload()
+	fmt.Printf("Received: %s on topic: %s\n", payload, msg.Topic())
+	metrics := api.Metrics{}
+	if err := metrics.UnmarshalJSON(payload); err != nil {
+		fmt.Printf("Error unmarshalling JSON: %s\n", err)
+		return
+	}
+	fmt.Printf("SensorId: %s, Temperature: %f, Illuminance: %f, Status: %s\n",
+		metrics.SensorId, metrics.Temperature, metrics.Illuminance, metrics.Status)
+	record := &api.Record{
+		Value: payload,
+	}
+	off, err := log.Append(record)
+	if err != nil {
+		fmt.Println("Error appending record:", err)
+		return
+	}
+	fmt.Printf("Appended record at offset %d\n", off)
+	if off > 10 {
+		// 10こ前のレコードを読み出す
+		read, err := log.Read(off - 10)
+		if err != nil {
+			fmt.Println("Error reading record:", err)
+			return
+		}
+		fmt.Printf("Read record at offset %d: %s\n", off-10, string(read.Value))
+	}
 }
 
 func sub() {
@@ -119,7 +143,6 @@ func sub() {
 	options := mqtt.NewClientOptions()
 	options.AddBroker(broker)
 	options.SetClientID(clientId)
-	options.SetDefaultPublishHandler(messagePubHandler)
 	options.OnConnect = connectHandler
 	options.OnConnectionLost = connectionLostHandler
 
@@ -131,41 +154,15 @@ func sub() {
 	}
 
 	topic := "log/#"
-	token = client.Subscribe(topic, 1, nil)
+	token = client.Subscribe(topic, 1, messageHandler)
 	if token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
 	fmt.Printf("Subscribed to topic %s\n", topic)
 
-	for i := 0; i < 10; i++ {
-		freq := float32(1) / 1000000
-		payload := fmt.Sprintf("%.02fMhz", freq)
-		token = client.Publish(topic, 0, false, payload)
-		if token.Wait() && token.Error() != nil {
-			panic(token.Error())
-		}
-		time.Sleep(time.Second)
-	}
+	select {}
 
-	client.Disconnect(100)
-
-	for {
-		select {}
-	}
-}
-
-// Returns an int >= min, < max
-func randomInt(min, max int) int {
-	return min + rand.Intn(max-min)
-}
-
-// Generate a random string of A-Z chars with len = l
-func randomString(len int) string {
-	bytes := make([]byte, len)
-	for i := 0; i < len; i++ {
-		bytes[i] = byte(randomInt(65, 90))
-	}
-	return string(bytes)
+	// client.Disconnect(250)
 }
 
 // Wait for user to open serial console

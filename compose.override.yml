@@ -17,11 +17,11 @@ x-server-base: &server-base
   tty: true
 
 services:
-  # agent1:
-  #   <<: *agent-base
-  #   container_name: mqtt-agent1
-  #   environment:
-  #     - MQTT_CLIENT_ID=agent1
+  agent1:
+    <<: *agent-base
+    container_name: mqtt-agent1
+    environment:
+      - MQTT_CLIENT_ID=agent1
   # agent2:
   #   <<: *agent-base
   #   container_name: mqtt-agent2

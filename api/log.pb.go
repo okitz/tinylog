@@ -5,9 +5,12 @@
 package log_v1
 
 import (
+	binary "encoding/binary"
 	fmt "fmt"
 	protobuf_go_lite "github.com/aperturerobotics/protobuf-go-lite"
+	json "github.com/aperturerobotics/protobuf-go-lite/json"
 	io "io"
+	math "math"
 )
 
 type Record struct {
@@ -36,50 +39,180 @@ func (x *Record) GetOffset() uint64 {
 	return 0
 }
 
-func (m *Record) CloneVT() *Record {
-	if m == nil {
-		return (*Record)(nil)
-	}
-	r := new(Record)
-	r.Offset = m.Offset
-	if rhs := m.Value; rhs != nil {
-		tmpBytes := make([]byte, len(rhs))
-		copy(tmpBytes, rhs)
-		r.Value = tmpBytes
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
+type Metrics struct {
+	unknownFields []byte
+	Timestamp     string  `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	SensorId      string  `protobuf:"bytes,2,opt,name=sensor_id,json=sensorId,proto3" json:"sensorId,omitempty"`
+	Temperature   float64 `protobuf:"fixed64,3,opt,name=temperature,proto3" json:"temperature,omitempty"`
+	Illuminance   float64 `protobuf:"fixed64,4,opt,name=illuminance,proto3" json:"illuminance,omitempty"`
+	Status        string  `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
 }
 
-func (m *Record) CloneMessageVT() protobuf_go_lite.CloneMessage {
-	return m.CloneVT()
+func (x *Metrics) Reset() {
+	*x = Metrics{}
 }
 
-func (this *Record) EqualVT(that *Record) bool {
-	if this == that {
-		return true
-	} else if this == nil || that == nil {
-		return false
+func (*Metrics) ProtoMessage() {}
+
+func (x *Metrics) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
 	}
-	if string(this.Value) != string(that.Value) {
-		return false
-	}
-	if this.Offset != that.Offset {
-		return false
-	}
-	return string(this.unknownFields) == string(that.unknownFields)
+	return ""
 }
 
-func (this *Record) EqualMessageVT(thatMsg any) bool {
-	that, ok := thatMsg.(*Record)
-	if !ok {
-		return false
+func (x *Metrics) GetSensorId() string {
+	if x != nil {
+		return x.SensorId
 	}
-	return this.EqualVT(that)
+	return ""
 }
+
+func (x *Metrics) GetTemperature() float64 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *Metrics) GetIlluminance() float64 {
+	if x != nil {
+		return x.Illuminance
+	}
+	return 0
+}
+
+func (x *Metrics) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+// MarshalProtoJSON marshals the Record message to JSON.
+func (x *Record) MarshalProtoJSON(s *json.MarshalState) {
+	if x == nil {
+		s.WriteNil()
+		return
+	}
+	s.WriteObjectStart()
+	var wroteField bool
+	if len(x.Value) > 0 || s.HasField("value") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("value")
+		s.WriteBytes(x.Value)
+	}
+	if x.Offset != 0 || s.HasField("offset") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("offset")
+		s.WriteUint64(x.Offset)
+	}
+	s.WriteObjectEnd()
+}
+
+// MarshalJSON marshals the Record to JSON.
+func (x *Record) MarshalJSON() ([]byte, error) {
+	return json.DefaultMarshalerConfig.Marshal(x)
+}
+
+// UnmarshalProtoJSON unmarshals the Record message from JSON.
+func (x *Record) UnmarshalProtoJSON(s *json.UnmarshalState) {
+	if s.ReadNil() {
+		return
+	}
+	s.ReadObject(func(key string) {
+		switch key {
+		default:
+			s.Skip() // ignore unknown field
+		case "value":
+			s.AddField("value")
+			x.Value = s.ReadBytes()
+		case "offset":
+			s.AddField("offset")
+			x.Offset = s.ReadUint64()
+		}
+	})
+}
+
+// UnmarshalJSON unmarshals the Record from JSON.
+func (x *Record) UnmarshalJSON(b []byte) error {
+	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
+}
+
+// MarshalProtoJSON marshals the Metrics message to JSON.
+func (x *Metrics) MarshalProtoJSON(s *json.MarshalState) {
+	if x == nil {
+		s.WriteNil()
+		return
+	}
+	s.WriteObjectStart()
+	var wroteField bool
+	if x.Timestamp != "" || s.HasField("timestamp") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("timestamp")
+		s.WriteString(x.Timestamp)
+	}
+	if x.SensorId != "" || s.HasField("sensorId") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("sensorId")
+		s.WriteString(x.SensorId)
+	}
+	if x.Temperature != 0 || s.HasField("temperature") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("temperature")
+		s.WriteFloat64(x.Temperature)
+	}
+	if x.Illuminance != 0 || s.HasField("illuminance") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("illuminance")
+		s.WriteFloat64(x.Illuminance)
+	}
+	if x.Status != "" || s.HasField("status") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("status")
+		s.WriteString(x.Status)
+	}
+	s.WriteObjectEnd()
+}
+
+// MarshalJSON marshals the Metrics to JSON.
+func (x *Metrics) MarshalJSON() ([]byte, error) {
+	return json.DefaultMarshalerConfig.Marshal(x)
+}
+
+// UnmarshalProtoJSON unmarshals the Metrics message from JSON.
+func (x *Metrics) UnmarshalProtoJSON(s *json.UnmarshalState) {
+	if s.ReadNil() {
+		return
+	}
+	s.ReadObject(func(key string) {
+		switch key {
+		default:
+			s.Skip() // ignore unknown field
+		case "timestamp":
+			s.AddField("timestamp")
+			x.Timestamp = s.ReadString()
+		case "sensor_id", "sensorId":
+			s.AddField("sensor_id")
+			x.SensorId = s.ReadString()
+		case "temperature":
+			s.AddField("temperature")
+			x.Temperature = s.ReadFloat64()
+		case "illuminance":
+			s.AddField("illuminance")
+			x.Illuminance = s.ReadFloat64()
+		case "status":
+			s.AddField("status")
+			x.Status = s.ReadString()
+		}
+	})
+}
+
+// UnmarshalJSON unmarshals the Metrics from JSON.
+func (x *Metrics) UnmarshalJSON(b []byte) error {
+	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
+}
+
 func (m *Record) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -125,6 +258,72 @@ func (m *Record) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Metrics) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Metrics) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Metrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Status) > 0 {
+		i -= len(m.Status)
+		copy(dAtA[i:], m.Status)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.Status)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.Illuminance != 0 {
+		i -= 8
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Illuminance))))
+		i--
+		dAtA[i] = 0x21
+	}
+	if m.Temperature != 0 {
+		i -= 8
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Temperature))))
+		i--
+		dAtA[i] = 0x19
+	}
+	if len(m.SensorId) > 0 {
+		i -= len(m.SensorId)
+		copy(dAtA[i:], m.SensorId)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.SensorId)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Timestamp) > 0 {
+		i -= len(m.Timestamp)
+		copy(dAtA[i:], m.Timestamp)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.Timestamp)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *Record) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -137,6 +336,34 @@ func (m *Record) SizeVT() (n int) {
 	}
 	if m.Offset != 0 {
 		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Offset))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *Metrics) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Timestamp)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
+	}
+	l = len(m.SensorId)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
+	}
+	if m.Temperature != 0 {
+		n += 9
+	}
+	if m.Illuminance != 0 {
+		n += 9
+	}
+	l = len(m.Status)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -224,6 +451,175 @@ func (m *Record) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		default:
+			iNdEx = preIndex
+			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Metrics) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protobuf_go_lite.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Metrics: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Metrics: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Timestamp = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SensorId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SensorId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Temperature", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Temperature = float64(math.Float64frombits(v))
+		case 4:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Illuminance", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Illuminance = float64(math.Float64frombits(v))
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Status = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
