@@ -39,10 +39,16 @@ Desktop.ini
 *Zone.Identifier
 
 ### Mosquitto ###
-*/log/mosquitto.log
-*/data/mosquitto*.db*
+*/mosquitto/log/mosquitto.log
+*/mosquitto/data/mosquitto*.db*
 
-### Executable ###
+### protobuf ###
+*.pb.go
+api/gen/
+
+### build ###
+/build/*
+!/build/docker/
 *.exe
 *.hex
 *.uf2

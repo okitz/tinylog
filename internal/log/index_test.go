@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	filesys "github.com/okitz/mqtt-log-pipeline/server/filesys"
+	filesys "github.com/okitz/mqtt-log-pipeline/internal/filesys"
 	"github.com/stretchr/testify/require"
 )
 

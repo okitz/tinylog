@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/okitz/mqtt-log-pipeline/server/internal/testutil"
+	"github.com/okitz/mqtt-log-pipeline/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
 

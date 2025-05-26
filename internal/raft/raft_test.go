@@ -7,7 +7,7 @@ import (
 
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
+	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
 )
 
 type stubLog struct{}

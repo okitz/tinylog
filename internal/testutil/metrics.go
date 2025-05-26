@@ -1,13 +1,15 @@
-package metrics
+package testutil
 
 import (
 	"fmt"
 	"math/rand/v2"
 	"time"
+
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 )
 
 func RandomMetricsJson(clientID string) string {
-	data := Metrics{
+	data := log_v1.Metrics{
 		Timestamp:   time.Now().Format(time.RFC3339),
 		SensorId:    clientID,
 		Temperature: rand.Float64() * 30,

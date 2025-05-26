@@ -4,14 +4,12 @@ import (
 	"fmt"
 	// "machine"
 
-	"os"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
+	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
 
 	// "tinygo.org/x/drivers/netlink"
 	// "tinygo.org/x/drivers/netlink/probe"
-	api "github.com/okitz/mqtt-log-pipeline/api"
-	logpkg "github.com/okitz/mqtt-log-pipeline/server/log"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )
@@ -41,7 +39,7 @@ func main() {
 		return
 	}
 	defer log.Close()
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	off, err := log.Append(append)
@@ -55,7 +53,6 @@ func main() {
 		return
 	}
 	fmt.Printf("Read record at offset %d: %s\n", off, string(read.Value))
-	sub()
 
 }
 
@@ -96,14 +93,14 @@ var connectionLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, 
 var messageHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	payload := msg.Payload()
 	fmt.Printf("Received: %s on topic: %s\n", payload, msg.Topic())
-	metrics := api.Metrics{}
+	metrics := log_v1.Metrics{}
 	if err := metrics.UnmarshalJSON(payload); err != nil {
 		fmt.Printf("Error unmarshalling JSON: %s\n", err)
 		return
 	}
 	fmt.Printf("SensorId: %s, Temperature: %f, Illuminance: %f, Status: %s\n",
 		metrics.SensorId, metrics.Temperature, metrics.Illuminance, metrics.Status)
-	record := &api.Record{
+	record := &log_v1.Record{
 		Value: payload,
 	}
 	off, err := log.Append(record)
@@ -122,52 +119,3 @@ var messageHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Messa
 		fmt.Printf("Read record at offset %d: %s\n", off-10, string(read.Value))
 	}
 }
-
-func sub() {
-	// link, _ := probe.Probe()
-
-	// err := link.NetConnect(&netlink.ConnectParams{
-	// 	Ssid:       ssid,
-	// 	Passphrase: pass,
-	// })
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	clientId := os.Getenv("MQTT_CLIENT_ID")
-	if clientId == "" {
-		clientId = "server0"
-	}
-
-	fmt.Printf("ClientId: %s\n", clientId)
-
-	options := mqtt.NewClientOptions()
-	options.AddBroker(broker)
-	options.SetClientID(clientId)
-	options.OnConnect = connectHandler
-	options.OnConnectionLost = connectionLostHandler
-
-	fmt.Printf("Connecting to MQTT broker at %s\n", broker)
-	client := mqtt.NewClient(options)
-	token := client.Connect()
-	if token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-
-	topic := "log/#"
-	token = client.Subscribe(topic, 1, messageHandler)
-	if token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-	fmt.Printf("Subscribed to topic %s\n", topic)
-
-	select {}
-
-	// client.Disconnect(250)
-}
-
-// Wait for user to open serial console
-// func waitSerial() {
-// 	for !machine.Serial.DTR() {
-// 		time.Sleep(100 * time.Millisecond)
-// 	}
-// }
