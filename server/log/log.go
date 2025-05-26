@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	api "github.com/okitz/mqtt-log-pipeline/api"
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	"github.com/okitz/mqtt-log-pipeline/server/filesys"
 	"tinygo.org/x/tinyfs/littlefs"
 )
@@ -82,7 +82,7 @@ func (l *Log) setup() error {
 }
 
 // TODO: segmentごとのロック
-func (l *Log) Append(record *api.Record) (uint64, error) {
+func (l *Log) Append(record *log_v1.Record) (uint64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (l *Log) Append(record *api.Record) (uint64, error) {
 	return off, err
 }
 
-func (l *Log) Read(off uint64) (*api.Record, error) {
+func (l *Log) Read(off uint64) (*log_v1.Record, error) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	var s *segment

@@ -10,8 +10,6 @@ require (
 )
 
 require (
-	github.com/aperturerobotics/json-iterator-lite v1.0.0 // indirect
-	github.com/aperturerobotics/protobuf-go-lite v0.9.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/okitz/mqtt-log-pipeline/api"
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +63,7 @@ func lscmd(argv []string) {
 }
 
 func testAppendRead(t *testing.T, log *Log) {
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	off, err := log.Append(append)
@@ -82,7 +82,7 @@ func testOutOfRangeErr(t *testing.T, log *Log) {
 }
 
 func testInitExisting(t *testing.T, o *Log) {
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	for i := 0; i < 3; i++ {
@@ -111,7 +111,7 @@ func testInitExisting(t *testing.T, o *Log) {
 }
 
 func testReader(t *testing.T, log *Log) {
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	off, err := log.Append(append)
@@ -122,14 +122,14 @@ func testReader(t *testing.T, log *Log) {
 	b, err := io.ReadAll(reader)
 	require.NoError(t, err)
 
-	read := &api.Record{}
+	read := &log_v1.Record{}
 	err = read.UnmarshalVT(b[lenWidth:])
 	require.NoError(t, err)
 	require.Equal(t, append.Value, read.Value)
 }
 
 func testTruncate(t *testing.T, log *Log) {
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	for i := 0; i < 3; i++ {
@@ -145,7 +145,7 @@ func testTruncate(t *testing.T, log *Log) {
 }
 
 func testRemove(t *testing.T, log *Log) {
-	append := &api.Record{
+	append := &log_v1.Record{
 		Value: []byte("hello world"),
 	}
 	for i := 0; i < 3; i++ {

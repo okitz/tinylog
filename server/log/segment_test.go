@@ -4,7 +4,7 @@ import (
 	"io"
 	"testing"
 
-	api "github.com/okitz/mqtt-log-pipeline/api"
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,7 +13,7 @@ func TestSegment(t *testing.T) {
 	defer unmount()
 	require.NotNil(t, fs)
 
-	want := &api.Record{Value: []byte("hello world")}
+	want := &log_v1.Record{Value: []byte("hello world")}
 
 	c := Config{}
 	c.Segment.MaxStoreBytes = 1024

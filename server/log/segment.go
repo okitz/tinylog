@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	api "github.com/okitz/mqtt-log-pipeline/api"
+	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	"github.com/okitz/mqtt-log-pipeline/server/filesys"
 	"tinygo.org/x/tinyfs/littlefs"
 )
@@ -28,8 +28,10 @@ func newSegment(fs *littlefs.LFS, dirname string, baseOffset uint64, c Config) (
 		dirname:    dirname,
 		closed:     false,
 	}
+	filename := fmt.Sprintf("%d%s", baseOffset, ".store")
+	fmt.Println("store filename", filename)
 	storeFile, err := filesys.OpenFile(fs,
-		filepath.Join(dirname, fmt.Sprintf("%d%s", baseOffset, ".store")),
+		filepath.Join(dirname, filename),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
 	)
 	if err != nil {
@@ -38,8 +40,10 @@ func newSegment(fs *littlefs.LFS, dirname string, baseOffset uint64, c Config) (
 	if s.store, err = newStore(storeFile, c); err != nil {
 		return nil, err
 	}
+	filename = fmt.Sprintf("%d%s", baseOffset, ".index")
+	fmt.Println("index filename", filename)
 	indexFile, err := filesys.OpenFile(fs,
-		filepath.Join(dirname, fmt.Sprintf("%d%s", baseOffset, ".index")),
+		filepath.Join(dirname, filename),
 		os.O_RDWR|os.O_CREATE|os.O_APPEND,
 	)
 
@@ -57,7 +61,7 @@ func newSegment(fs *littlefs.LFS, dirname string, baseOffset uint64, c Config) (
 	return s, nil
 }
 
-func (s *segment) Append(record *api.Record) (offset uint64, err error) {
+func (s *segment) Append(record *log_v1.Record) (offset uint64, err error) {
 	cur := s.nextOffset
 	record.Offset = cur
 	p, err := record.MarshalVT()
@@ -79,7 +83,7 @@ func (s *segment) Append(record *api.Record) (offset uint64, err error) {
 	return cur, nil
 }
 
-func (s *segment) Read(off uint64) (*api.Record, error) {
+func (s *segment) Read(off uint64) (*log_v1.Record, error) {
 	_, pos, err := s.index.Read(int64(off - s.baseOffset))
 	if err != nil {
 		return nil, err
@@ -88,7 +92,7 @@ func (s *segment) Read(off uint64) (*api.Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	record := &api.Record{}
+	record := &log_v1.Record{}
 	err = record.UnmarshalVT(p)
 	return record, err
 }
@@ -99,7 +103,7 @@ func (s *segment) IsMaxed() bool {
 		s.index.IsMaxed()
 }
 
-func (s *segment) ToBeMaxed(record *api.Record) (bool, error) {
+func (s *segment) ToBeMaxed(record *log_v1.Record) (bool, error) {
 	p, err := record.MarshalVT()
 	if err != nil {
 		return false, err

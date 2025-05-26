@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package raft.v1;
+
+option go_package = "github.com/okitz/mqtt-log-pipeline/api/raft/raft_v1";
+
+message LogEntry {
+  uint64 term = 1;
+  uint64 index = 2;
+  string command = 3;
+}
+
+// RequestVote RPC
+message RequestVoteRequest {
+  uint64 term = 1;
+  string candidate_id = 2;
+  uint64 last_log_index = 3;
+  uint64 last_log_term = 4;
+}
+
+message RequestVoteReply {
+  uint64 term = 1;
+  bool vote_granted = 2;
+}
+
+// AppendEntries RPC
+message AppendEntriesRequest {
+  uint64 term = 1;
+  string leader_id = 2;
+  uint64 prev_log_index = 3;
+  uint64 prev_log_term = 4;
+  repeated LogEntry entries = 5;
+  uint64 leader_commit = 6;
+}
+
+message AppendEntriesReply {
+  uint64 term = 1;
+  bool success = 2;
+  uint64 match_index = 3;
+}
