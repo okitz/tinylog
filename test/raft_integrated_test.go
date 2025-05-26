@@ -22,14 +22,14 @@ func TestMQTTElectionBasic(t *testing.T) {
 	h.CheckSingleLeader()
 }
 
-func TestMQTTElectionLeaderDisconnect(t *testing.T) {
+func TestMQTTElectionLeaderStop(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 
 	origLeaderId, origTerm := h.CheckSingleLeader()
 
-	h.DisconnectNode(origLeaderId)
-	time.Sleep(time.Millisecond * 500) // リーダーが切断されるのを待つ
+	h.StopNode(origLeaderId)
+	time.Sleep(time.Millisecond * 100) // リーダーが切断されるのを待つ
 
 	newLeaderId, newTerm := h.CheckSingleLeader()
 	if newLeaderId == origLeaderId {
@@ -40,22 +40,22 @@ func TestMQTTElectionLeaderDisconnect(t *testing.T) {
 	}
 }
 
-func TestElectionLeaderAndAnotherDisconnect(t *testing.T) {
+func TestElectionLeaderAndAnotherStop(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 
 	origLeaderId, _ := h.CheckSingleLeader()
 
-	h.DisconnectNode(origLeaderId)
+	h.StopNode(origLeaderId)
 	otherId := h.nodeIds[0]
 	if otherId == origLeaderId {
 		otherId = h.nodeIds[1] // 別のノードを選ぶ
 	}
-	h.DisconnectNode(otherId)
+	h.StopNode(otherId)
 
 	time.Sleep(time.Millisecond * 500) // リーダーともう一つのノードが切断されるのを待つ
 	h.CheckNoLeader()
 
-	// h.ReconnectNode(otherId)
+	h.ResumeNode(otherId)
 	h.CheckSingleLeader()
 }

@@ -30,7 +30,7 @@ func NewHarness(t *testing.T, n int) *Harness {
 	nodeIds := make([]string, n)
 
 	for i := 0; i < n; i++ {
-		nodeIds[i] = fmt.Sprintf("node-%02d", i+1)
+		nodeIds[i] = fmt.Sprintf("node-%02d", i)
 	}
 
 	for i, nodeId := range nodeIds {
@@ -92,6 +92,7 @@ func NewHarness(t *testing.T, n int) *Harness {
 func (h *Harness) Shutdown() {
 	for i := 0; i < h.n; i++ {
 		h.rpcClients[i].Disconnect()
+		h.raftNodes[i].Stop()
 		h.connected[i] = false
 	}
 }
@@ -108,41 +109,56 @@ func (h *Harness) GetAllNodeInfos() []map[string]interface{} {
 func (h Harness) CheckSingleLeader() (string, uint64) {
 	tutl.WaitForCondition(h.t, time.Second*10, time.Millisecond*100, func() bool {
 		nodeInfos := h.GetAllNodeInfos()
-		var latestLeaderId string
-		latestTerm := uint64(0)
+		if len(nodeInfos) == 0 {
+			return false
+		}
+
+		currentTerm := uint64(0)
+		var currentLeaderId string
 		for _, info := range nodeInfos {
-			leaderId := info["leaderId"].(string)
-			currentTerm := info["currentTerm"].(uint64)
-			if leaderId == "" {
+			t := info["currentTerm"].(uint64)
+			if t > currentTerm {
+				currentTerm = t
+				currentLeaderId = info["leaderId"].(string)
+			}
+		}
+		if currentTerm == 0 || currentLeaderId == "" {
+			return false
+		}
+
+		leaderCount := 0
+		for _, info := range nodeInfos {
+			if info["currentTerm"] != currentTerm {
+				continue
+			}
+			if info["leaderId"] != currentLeaderId {
 				return false
 			}
-
-			if currentTerm > latestTerm {
-				latestTerm = currentTerm
-				latestLeaderId = leaderId
-			} else if currentTerm == latestTerm {
-				if (info["id"] != latestLeaderId || info["state"] != "Leader") &&
-					(info["id"] == latestLeaderId || info["state"] != "Follower") {
+			if info["state"] == "Leader" {
+				leaderCount++
+				if info["id"] != currentLeaderId {
 					return false
 				}
 			}
-			// リーダーが独りだけ存在することを確認
 		}
+		if leaderCount != 1 {
+			return false
+		}
+
 		fmt.Println(nodeInfos)
 		return true
 	}, "invalid node status")
 	nodeInfos := h.GetAllNodeInfos()
-	var latestLeaderId string
-	latestTerm := uint64(0)
+	currentTerm := uint64(0)
+	var currentLeaderId string
 	for _, info := range nodeInfos {
-		leaderId := info["leaderId"].(string)
-		currentTerm := info["currentTerm"].(uint64)
-		if currentTerm > latestTerm {
-			latestTerm = currentTerm
-			latestLeaderId = leaderId
+		t := info["currentTerm"].(uint64)
+		if t > currentTerm {
+			currentTerm = t
+			currentLeaderId = info["leaderId"].(string)
 		}
 	}
-	return latestLeaderId, latestTerm
+	return currentLeaderId, currentTerm
 }
 
 func (h Harness) CheckNoLeader() {
@@ -153,10 +169,10 @@ func (h Harness) CheckNoLeader() {
 
 }
 
-func (h *Harness) DisconnectNode(nodeId string) {
+func (h *Harness) StopNode(nodeId string) {
 	for i, id := range h.nodeIds {
 		if id == nodeId {
-			h.rpcClients[i].Disconnect()
+			h.raftNodes[i].Stop()
 			h.connected[i] = false
 			return
 		}
@@ -164,14 +180,13 @@ func (h *Harness) DisconnectNode(nodeId string) {
 	h.t.Fatalf("Node with ID %s not found", nodeId)
 }
 
-// func (h *Harness) ReconnectNode(nodeId string) {
-// 	for i, id := range h.nodeIds {
-// 		if id == nodeId {
-// 			if !h.connected[i] {
-// 				h.rpcClients[i].Reconnect()
-// 			}
-// 			return
-// 		}
-// 	}
-// 	h.t.Fatalf("Node with ID %s not found", nodeId)
-// }
+func (h *Harness) ResumeNode(nodeId string) {
+	for i, id := range h.nodeIds {
+		if id == nodeId {
+			h.raftNodes[i].Resume()
+			h.connected[i] = true
+			return
+		}
+	}
+	h.t.Fatalf("Node with ID %s not found", nodeId)
+}
