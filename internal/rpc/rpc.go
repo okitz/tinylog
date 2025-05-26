@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	mqtt "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
+	raft "github.com/okitz/mqtt-log-pipeline/internal/raft"
 )
 
 type Request struct {
@@ -62,7 +63,7 @@ type RPCClient struct {
 	id         string // client ID
 	mqtt       mqtt.Client
 	registry   *Registry // method registry
-	pending    map[string](chan<- RPCResopnse)
+	pending    map[string](chan<- raft.RPCResopnse)
 	pendingMux sync.Mutex
 }
 
@@ -71,9 +72,13 @@ func NewRPCClient(m mqtt.Client, clientId string) *RPCClient {
 		id:       clientId,
 		mqtt:     m,
 		registry: NewRegistry(),
-		pending:  make(map[string]chan<- RPCResopnse),
+		pending:  make(map[string]chan<- raft.RPCResopnse),
 	}
 	return c
+}
+
+func (c *RPCClient) ID() string {
+	return c.id
 }
 
 func (c *RPCClient) RegisterMethod(name string, handler Handler) {
@@ -86,6 +91,10 @@ func (c *RPCClient) Start() error {
 	}
 
 	return nil
+}
+
+func (c *RPCClient) Disconnect() {
+	c.mqtt.Disconnect()
 }
 
 func (c *RPCClient) subscribeRequests() error {
@@ -172,7 +181,7 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	repCh := make(chan RPCResopnse, 1)
+	repCh := make(chan raft.RPCResopnse, 1)
 	c.pendingMux.Lock()
 	c.pending[req.RequestId] = repCh
 	c.pendingMux.Unlock()
@@ -185,6 +194,7 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 	token := c.mqtt.Publish(topic, 1, false, out)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
+		close(c.pending[req.RequestId])
 		delete(c.pending, req.RequestId)
 		c.pendingMux.Unlock()
 		return nil, fmt.Errorf("failed to publish request: %w", token.Error())
@@ -201,13 +211,14 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 		return res.Raw(), nil
 	case <-ctx.Done():
 		c.pendingMux.Lock()
+		close(c.pending[req.RequestId])
 		delete(c.pending, req.RequestId)
 		c.pendingMux.Unlock()
 		return nil, ctx.Err()
 	}
 }
 
-func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams json.RawMessage) (<-chan RPCResopnse, error) {
+func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams json.RawMessage) (<-chan raft.RPCResopnse, error) {
 	req := Request{
 		RequestId: uuid.New().String(),
 		SenderId:  c.id,
@@ -219,7 +230,7 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	repCh := make(chan RPCResopnse, 1)
+	repCh := make(chan raft.RPCResopnse, 1)
 	c.pendingMux.Lock()
 	c.pending[req.RequestId] = repCh
 	c.pendingMux.Unlock()
@@ -231,6 +242,7 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 	token := c.mqtt.Publish(topic, 1, false, out)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
+		close(c.pending[req.RequestId])
 		delete(c.pending, req.RequestId)
 		c.pendingMux.Unlock()
 		return nil, fmt.Errorf("failed to publish broadcast request: %w", token.Error())
@@ -247,6 +259,7 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 	token := c.mqtt.Subscribe(topic, 1, handler)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
+		close(c.pending[reqId])
 		delete(c.pending, reqId)
 		c.pendingMux.Unlock()
 		return fmt.Errorf("failed to subscribe to responses: %w", token.Error())
@@ -257,6 +270,7 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 		unsubToken := c.mqtt.Unsubscribe(topic)
 		unsubToken.Wait()
 		c.pendingMux.Lock()
+		close(c.pending[reqId])
 		delete(c.pending, reqId)
 		c.pendingMux.Unlock()
 	}()

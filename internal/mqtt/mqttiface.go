@@ -5,6 +5,7 @@ type Client interface {
 	SubscribeMultiple(topics map[string]byte, callback MessageHandler) Token
 	Unsubscribe(topics ...string) Token
 	Publish(topic string, qos byte, retained bool, payload interface{}) Token
+	Disconnect()
 }
 
 type Message interface {

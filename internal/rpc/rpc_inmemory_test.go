@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -95,8 +94,7 @@ func TestRPCClient_CallRPC_UnregisteredMethod(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	res, err := clientA.CallRPC(ctx, "B", "noSuchMethod", json.RawMessage(`{}`))
-	fmt.Println(res)
+	_, err := clientA.CallRPC(ctx, "B", "noSuchMethod", json.RawMessage(`{}`))
 	if err == nil {
 		t.Fatal("expected error for unknown method, got nil")
 	}

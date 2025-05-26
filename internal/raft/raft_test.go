@@ -8,6 +8,7 @@ import (
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
 	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
+	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
 
 type stubLog struct{}
@@ -20,12 +21,21 @@ func (s *stubLog) Read(offset uint64) (*log_v1.Record, error) {
 func setupFakeCluster(n int64) ([]*Raft, *FakeRPCTransporter) {
 	tp := NewFakeRPCTransporter()
 	nodes := make([]*Raft, n)
-	peers := make([]string, n)
+	nodeIds := make([]string, n)
 	for i := int64(0); i < n; i++ {
-		peers[i] = fmt.Sprintf("node-%02d", i+1)
+		nodeIds[i] = fmt.Sprintf("node-%02d", i+1)
 	}
-	for i, nodeId := range peers {
+
+	for i, nodeId := range nodeIds {
 		clt := NewFakeRPCClient(nodeId, tp)
+		// 自分自身を除外したピアリストを作成
+		var peers []string
+		for j, s := range nodeIds {
+			if s == nodeId {
+				peers = append(append([]string{}, nodeIds[:j]...), nodeIds[j+1:]...)
+				break
+			}
+		}
 		r := NewRaft(nodeId, (*logpkg.Log)(nil), peers, clt)
 		r.becomeFollower(0)
 		nodes[i] = r
@@ -138,7 +148,6 @@ func TestClusterElection(t *testing.T) {
 }
 
 func TestLeaderStable(t *testing.T) {
-	fmt.Println("TestLeaderStable #####################")
 
 	nodes, _ := setupFakeCluster(3)
 
@@ -156,7 +165,6 @@ func TestLeaderStable(t *testing.T) {
 
 // リーダーがkillされた後、他のノードが新しいリーダーになることを確認するテスト
 func TestNewLeaderAfterKill(t *testing.T) {
-	fmt.Println("TestNewLeaderAfterKill #####################")
 	nodes, tp := setupFakeCluster(5)
 
 	// ノード1をLeaderにする
@@ -172,7 +180,7 @@ func TestNewLeaderAfterKill(t *testing.T) {
 	tp.KillNode(nodes[0].Id)
 	fmt.Println("Node 1 killed, waiting for new Leader")
 
-	waitForCondition(t, 10*time.Second, 100*time.Millisecond, func() bool {
+	tutl.WaitForCondition(t, 2*time.Second, 100*time.Millisecond, func() bool {
 		lCnt := 0
 		for i := 1; i < len(nodes); i++ {
 			if nodes[i].state == Leader {
@@ -187,23 +195,10 @@ func TestNewLeaderAfterKill(t *testing.T) {
 	tp.RecoverNode(nodes[0].Id) // ノード1を復活させる
 	fmt.Println("Node 1 recovered")
 
-	waitForCondition(t, 10*time.Second, 100*time.Millisecond, func() bool {
+	tutl.WaitForCondition(t, 2*time.Second, 100*time.Millisecond, func() bool {
 		return nodes[0].state == Follower
 	}, "expected node1 to become Follower")
 
-}
-
-func waitForCondition(t *testing.T, timeout time.Duration, interval time.Duration, condition func() bool, failMsg string) {
-	deadline := time.Now().Add(timeout)
-	for {
-		if condition() {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("timeout: %s\n", failMsg)
-		}
-		time.Sleep(interval)
-	}
 }
 
 // Termが増加することを確認するテスト

@@ -65,6 +65,12 @@ func (c *MockMQTTClient) Publish(topic string, qos byte, retained bool, payload 
 	return &mockMQTTToken{}
 }
 
+func (c *MockMQTTClient) Disconnect() {
+	c.broker.mu.Lock()
+	defer c.broker.mu.Unlock()
+	c.broker.handlers = make(map[string][]mqtt.MessageHandler)
+}
+
 type mockMQTTToken struct{}
 
 func (m *mockMQTTToken) Wait() bool                       { return true }

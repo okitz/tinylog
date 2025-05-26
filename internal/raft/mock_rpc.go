@@ -103,7 +103,7 @@ func (f *FakeRPCTransporter) BroadcastTrp(
 		go func(n *Raft) {
 			defer wg.Done()
 			switch method {
-			case "RequestVote":
+			case "raft.RequestVote":
 				var args raft_v1.RequestVoteRequest
 				_ = args.UnmarshalJSON(req)
 				rep, _ := n.HandleRequestVoteRequest(&args)
@@ -113,7 +113,7 @@ func (f *FakeRPCTransporter) BroadcastTrp(
 					ch <- r
 				}
 
-			case "AppendEntries":
+			case "raft.AppendEntries":
 				var args raft_v1.AppendEntriesRequest
 				_ = args.UnmarshalJSON(req)
 				rep, _ := n.HandleAppendEntriesRequest(&args)

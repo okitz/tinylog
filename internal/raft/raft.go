@@ -53,7 +53,7 @@ type Raft struct {
 	raftState
 	state             RState
 	Id                string
-	peers             []string
+	peers             []string // 他のノードのIDリスト
 	leaderId          string
 	lastElectionReset time.Time
 	rpcClt            RPCClient
@@ -85,13 +85,36 @@ func newRaftState(log *logpkg.Log, peers []string) *raftState {
 func NewRaft(id string, log *logpkg.Log, peers []string, rpcClt RPCClient) *Raft {
 	raftState := newRaftState(log, peers)
 	fmt.Println("NewRaft: id=", id)
-	return &Raft{
-		raftState:         *raftState,
-		Id:                id,
-		peers:             peers,
-		state:             Follower,
-		lastElectionReset: time.Now(),
-		rpcClt:            rpcClt,
+	r := &Raft{
+		raftState: *raftState,
+		Id:        id,
+		peers:     peers,
+		state:     Follower,
+		rpcClt:    rpcClt,
+	}
+
+	go func() {
+		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond) // ランダムな遅延を追加
+		r.mu.Lock()
+		r.lastElectionReset = time.Now()
+		r.mu.Unlock()
+		r.runElectionTimer()
+	}()
+
+	return r
+}
+
+func (r *Raft) GetNodeInfo() map[string]interface{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return map[string]interface{}{
+		"id":                r.Id,
+		"state":             r.state.String(),
+		"currentTerm":       r.currentTerm,
+		"votedFor":          r.votedFor,
+		"leaderId":          r.leaderId,
+		"lastElectionReset": r.lastElectionReset.UnixMilli(),
 	}
 }
 
@@ -197,7 +220,7 @@ func (r *Raft) runElectionTimer() {
 			return
 		}
 		if time.Since(r.lastElectionReset) >= timeout {
-			fmt.Println(r.Id, "Election timeout, starting election")
+			fmt.Printf("%s Election timeout; last reset at %d, now at %d; starting election\n", r.Id, r.lastElectionReset.UnixMilli(), time.Now().UnixMilli())
 			r.mu.Unlock()
 			r.startElection()
 			return
@@ -232,7 +255,7 @@ func (r *Raft) startElection() error {
 	if err != nil {
 		return err
 	}
-	repCh, err := r.rpcClt.BroadcastRPC(ctx, "RequestVote", reqJSON)
+	repCh, err := r.rpcClt.BroadcastRPC(ctx, "raft.RequestVote", reqJSON)
 	if err != nil {
 		return err
 	}
@@ -276,28 +299,35 @@ func (r *Raft) startElection() error {
 
 			replyCount++
 			if replyCount == len(r.peers) {
+				// 全員から応答あり
 				// deferでctxが閉じる
-				return nil // 全員から応答あり
+				return nil
 			}
 		case <-ctx.Done():
 			fmt.Println(r.Id, "startElection timeout")
 			return ctx.Err()
+			// default:
+			// fmt.Println(r.Id, "startElection: still waiting for votes")
 		}
+
 	}
 
 }
 
-func (r *Raft) becomeLeader() {
+func (r *Raft) becomeLeader() error {
 	fmt.Println(r.Id, "becomeLeader: id=", r.Id)
 	r.state = Leader
 	r.leaderId = r.Id
+
 	go func() {
 		ticker := time.NewTicker(50 * time.Millisecond)
 		defer ticker.Stop()
 
 		// リーダーとしてハートビートを送信
 		for {
-			r.sendLeaderHeartbeats()
+			if err := r.sendLeaderHeartbeats(); err != nil {
+				fmt.Println(r.Id, "Error sending leader heartbeats:", err)
+			}
 			<-ticker.C
 
 			r.mu.Lock()
@@ -308,11 +338,16 @@ func (r *Raft) becomeLeader() {
 			r.mu.Unlock()
 		}
 	}()
+
+	// if err := <-errCh; err != nil {
+	// 	return fmt.Errorf("failed to become leader: %w", err)
+	// }
+	return nil
 }
 
-func (r *Raft) sendLeaderHeartbeats() {
-	fmt.Println(r.Id, "sendLeaderHeartbeats: term=", r.currentTerm)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+func (r *Raft) sendLeaderHeartbeats() error {
+	fmt.Printf("%s sendLeaderHeartbeats: term=%d, now at %d\n", r.Id, r.currentTerm, time.Now().UnixMilli())
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	req := &raft_v1.AppendEntriesRequest{
@@ -326,24 +361,25 @@ func (r *Raft) sendLeaderHeartbeats() {
 	reqJSON, err := req.MarshalJSON()
 	if err != nil {
 		fmt.Println(r.Id, "Error marshalling AppendEntriesRequest:", err)
-		panic(err)
+		return err
 	}
-	repCh, err := r.rpcClt.BroadcastRPC(ctx, "AppendEntries", reqJSON)
+	repCh, err := r.rpcClt.BroadcastRPC(ctx, "raft.AppendEntries", reqJSON)
 	if err != nil {
 		fmt.Println(r.Id, "Error broadcasting AppendEntries:", err)
-		panic(err)
+		return err
 	}
 
+	replyCount := 0
 	for {
 		select {
 		case rawRep, ok := <-repCh:
 			if !ok {
 				fmt.Println(r.Id, "No more responses for AppendEntries")
-				return
+				return nil
 			}
 			if rawRep.Error() != nil {
 				fmt.Println(r.Id, "Error in AppendEntries response:", rawRep.Error())
-				panic(rawRep.Error())
+				return rawRep.Error()
 			}
 			repJSON := rawRep.Raw()
 			if len(repJSON) == 0 {
@@ -351,22 +387,27 @@ func (r *Raft) sendLeaderHeartbeats() {
 			}
 			rep := &raft_v1.AppendEntriesReply{}
 			if err := rep.UnmarshalJSON(repJSON); err != nil {
-				panic(err)
+				return fmt.Errorf("failed to unmarshal AppendEntriesReply: %w", err)
 			}
-			fmt.Println(r.Id, "Received AppendEntries reply: success=", rep.Success)
+			fmt.Printf("%s AppendEntries reply: success=%v, term=%d, now at %d\n", r.Id, rep.Success, rep.Term, time.Now().UnixMilli())
 			r.mu.Lock()
 			if rep.Term > r.currentTerm {
 				r.becomeFollower(rep.Term)
 				r.mu.Unlock()
-				return
+				return nil
 			}
 			r.mu.Unlock()
+
+			replyCount++
+			if replyCount == len(r.peers) {
+				// 全員から応答あり
+				// deferでctxが閉じる
+				fmt.Println(r.Id, "All peers responded to AppendEntries")
+				return nil
+			}
 		case <-ctx.Done():
 			fmt.Println(r.Id, "sendLeaderHeartbeats timeout")
-			if err := ctx.Err(); err != nil {
-				panic(err)
-			}
-
+			return ctx.Err()
 		}
 	}
 
