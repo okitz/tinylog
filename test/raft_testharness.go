@@ -190,3 +190,25 @@ func (h *Harness) ResumeNode(nodeId string) {
 	}
 	h.t.Fatalf("Node with ID %s not found", nodeId)
 }
+
+func (h *Harness) DisconnectNode(nodeId string) {
+	for i, id := range h.nodeIds {
+		if id == nodeId {
+			h.raftNodes[i].Disconnect()
+			h.connected[i] = false
+			return
+		}
+	}
+	h.t.Fatalf("Node with ID %s not found", nodeId)
+}
+
+func (h *Harness) ReconnectNode(nodeId string) {
+	for i, id := range h.nodeIds {
+		if id == nodeId {
+			h.raftNodes[i].Reconnect()
+			h.connected[i] = true
+			return
+		}
+	}
+	h.t.Fatalf("Node with ID %s not found", nodeId)
+}
