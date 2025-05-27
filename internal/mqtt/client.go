@@ -17,11 +17,13 @@ type Config struct {
 
 type client struct {
 	client pahomqtt.Client
+	Id     string
 }
 
 func NewClient(cfg Config) (Client, error) {
 	opts := pahomqtt.NewClientOptions().
 		AddBroker(cfg.Broker).
+		SetAutoReconnect(true).
 		SetClientID(cfg.ClientID).
 		SetConnectTimeout(cfg.Timeout)
 	if cfg.Username != "" {
@@ -36,7 +38,8 @@ func NewClient(cfg Config) (Client, error) {
 	if token := c.Connect(); token.Wait() && token.Error() != nil {
 		return nil, token.Error()
 	}
-	return &client{client: c}, nil
+
+	return &client{client: c, Id: cfg.ClientID}, nil
 }
 
 func (c *client) Subscribe(topic string, qos byte, callback MessageHandler) Token {
@@ -67,11 +70,11 @@ type token struct {
 	token pahomqtt.Token
 }
 
-func (t *token) Wait() bool {
+func (t token) Wait() bool {
 	return t.token.Wait()
 }
 
-func (t *token) Error() error {
+func (t token) Error() error {
 	return t.token.Error()
 }
 

@@ -11,7 +11,11 @@
         "golang.go",
         "golangci.golangci-lint",
         "ms-vscode.go"
-      ]
+      ],
+      "settings": {
+        "terminal.integrated.inheritEnv": true,
+        "terminal.integrated.defaultProfile.linux": "bash"  
+      }
     }
   }
 }

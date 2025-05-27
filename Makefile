@@ -1,4 +1,4 @@
-.PHONY: protoc build tinybuild clean
+.PHONY: protoc build tinybuild clean test size
 
 
 PROTOC_GEN := $(GOPATH)/bin/protoc-gen-go-lite
@@ -29,3 +29,6 @@ clean:
 	# ビルド成果物を削除(dockerフォルダは除く)
 	rm -rf build/tinygo/*
 	rm -rf build/amd64/*
+
+test:
+	go test -v ./...

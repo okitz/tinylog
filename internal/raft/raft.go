@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -104,6 +105,23 @@ func NewRaft(id string, log *logpkg.Log, peers []string, rpcClt RPCClient) *Raft
 	return r
 }
 
+func (r *Raft) Stop() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	fmt.Println(r.Id, "Stop: state=", r.state)
+	r.state = Dead
+}
+
+func (r *Raft) Resume() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.state == Dead {
+		fmt.Println(r.Id, "Resume: state was Dead, resuming as Follower")
+		r.state = Follower
+		r.becomeFollower(r.currentTerm)
+	}
+}
+
 func (r *Raft) GetNodeInfo() map[string]interface{} {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,10 +165,11 @@ func (r *Raft) becomeFollower(term uint64) {
 func (r *Raft) HandleRequestVoteRequest(req *raft_v1.RequestVoteRequest) (*raft_v1.RequestVoteReply, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	fmt.Println(r.Id, "HandleRequestVoteRequest: term=", req.Term, "candidate=", req.CandidateId)
 	if r.state == Dead || r.Id == req.CandidateId {
 		return nil, nil
 	}
+	fmt.Println(r.Id, "HandleRequestVoteRequest: term=", req.Term, "candidate=", req.CandidateId)
+
 	if req.Term > r.currentTerm {
 		r.becomeFollower(req.Term)
 	}
@@ -178,10 +197,10 @@ func (r *Raft) HandleRequestVoteRequest(req *raft_v1.RequestVoteRequest) (*raft_
 func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*raft_v1.AppendEntriesReply, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	fmt.Println(r.Id, "HandleAppendEntriesRequest: term=", req.Term, "leader=", req.LeaderId)
 	if r.state == Dead || r.Id == req.LeaderId {
 		return nil, nil
 	}
+	fmt.Println(r.Id, "HandleAppendEntriesRequest: term=", req.Term, "leader=", req.LeaderId)
 	if req.Term > r.currentTerm {
 		r.becomeFollower(req.Term)
 	}
@@ -231,8 +250,11 @@ func (r *Raft) runElectionTimer() {
 }
 
 func (r *Raft) startElection() error {
+	if r.state == Dead {
+		return fmt.Errorf("cannot start election in dead state")
+	}
 	fmt.Println(r.Id, "startElection: term=", r.currentTerm+1)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
 
 	r.mu.Lock()
@@ -261,27 +283,38 @@ func (r *Raft) startElection() error {
 	}
 
 	for {
+		r.mu.Lock()
+		if r.state != Candidate {
+			r.mu.Unlock()
+			return nil
+		}
+		r.mu.Unlock()
+
 		select {
 		case rawRep, ok := <-repCh:
 			if !ok {
 				fmt.Println(r.Id, "No more responses for RequestVote")
 				return nil
 			}
-			if rawRep.Error() != nil {
-				fmt.Println(r.Id, "Error in RequestVote response:", rawRep.Error())
-				return rawRep.Error()
-			}
 			repJSON := rawRep.Raw()
+			repErr := rawRep.Error()
 			if len(repJSON) == 0 {
 				continue
 			}
-			if r.state != Candidate {
-				return nil
+			if repErr != nil {
+				fmt.Println(r.Id, "Error in RequestVote response:", repErr)
+				return repErr
+			}
+			if bytes.Equal(bytes.TrimSpace(repJSON), []byte("null")) {
+				// 返信元が Dead になっているが通信はできた場合、
+				// 返信が空になる (テスト中にのみ発生？)
+				continue
 			}
 			rep := &raft_v1.RequestVoteReply{}
 			if err := rep.UnmarshalJSON(repJSON); err != nil {
 				return err
 			}
+
 			fmt.Println(r.Id, "Received vote reply: granted=", rep.VoteGranted)
 			if rep.Term > r.currentTerm {
 				r.becomeFollower(rep.Term)
@@ -305,6 +338,7 @@ func (r *Raft) startElection() error {
 			}
 		case <-ctx.Done():
 			fmt.Println(r.Id, "startElection timeout")
+			go r.runElectionTimer()
 			return ctx.Err()
 			// default:
 			// fmt.Println(r.Id, "startElection: still waiting for votes")
@@ -315,6 +349,9 @@ func (r *Raft) startElection() error {
 }
 
 func (r *Raft) becomeLeader() error {
+	if r.state == Dead {
+		return fmt.Errorf("cannot become leader in dead state")
+	}
 	fmt.Println(r.Id, "becomeLeader: id=", r.Id)
 	r.state = Leader
 	r.leaderId = r.Id
@@ -346,6 +383,9 @@ func (r *Raft) becomeLeader() error {
 }
 
 func (r *Raft) sendLeaderHeartbeats() error {
+	if r.state == Dead {
+		return fmt.Errorf("cannot send heartbeats in dead state")
+	}
 	fmt.Printf("%s sendLeaderHeartbeats: term=%d, now at %d\n", r.Id, r.currentTerm, time.Now().UnixMilli())
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -365,24 +405,36 @@ func (r *Raft) sendLeaderHeartbeats() error {
 	}
 	repCh, err := r.rpcClt.BroadcastRPC(ctx, "raft.AppendEntries", reqJSON)
 	if err != nil {
-		fmt.Println(r.Id, "Error broadcasting AppendEntries:", err)
 		return err
 	}
 
 	replyCount := 0
 	for {
+		r.mu.Lock()
+		if r.state != Leader {
+			r.mu.Unlock()
+			return nil
+		}
+		r.mu.Unlock()
+
 		select {
 		case rawRep, ok := <-repCh:
 			if !ok {
 				fmt.Println(r.Id, "No more responses for AppendEntries")
 				return nil
 			}
-			if rawRep.Error() != nil {
-				fmt.Println(r.Id, "Error in AppendEntries response:", rawRep.Error())
-				return rawRep.Error()
-			}
 			repJSON := rawRep.Raw()
+			repErr := rawRep.Error()
 			if len(repJSON) == 0 {
+				continue
+			}
+			if repErr != nil {
+				fmt.Println(r.Id, "Error in AppendEntries response:", repErr)
+				return repErr
+			}
+			if bytes.Equal(bytes.TrimSpace(repJSON), []byte("null")) {
+				// 返信元が Dead になっているが通信はできた場合、
+				// 返信が空になる (テスト中にのみ発生？)
 				continue
 			}
 			rep := &raft_v1.AppendEntriesReply{}

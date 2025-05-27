@@ -12,6 +12,8 @@ import (
 	raft "github.com/okitz/mqtt-log-pipeline/internal/raft"
 )
 
+const QOS = 2
+
 type Request struct {
 	RequestId string          `json:"requestId"`
 	SenderId  string          `json:"sender_id"`
@@ -86,6 +88,14 @@ func (c *RPCClient) RegisterMethod(name string, handler Handler) {
 }
 
 func (c *RPCClient) Start() error {
+	c.pendingMux.Lock()
+	defer c.pendingMux.Unlock()
+
+	// Clear pending requests
+	for reqId, ch := range c.pending {
+		close(ch)
+		delete(c.pending, reqId)
+	}
 	if err := c.subscribeRequests(); err != nil {
 		return fmt.Errorf("failed to subscribe to requests: %w", err)
 	}
@@ -103,8 +113,8 @@ func (c *RPCClient) subscribeRequests() error {
 	}
 
 	topics := map[string]byte{
-		"rpc/broadcast": 1,
-		"rpc/" + c.id:   1,
+		"rpc/broadcast": QOS,
+		"rpc/" + c.id:   QOS,
 	}
 	token := c.mqtt.SubscribeMultiple(topics, handler)
 	if token.Wait() && token.Error() != nil {
@@ -119,7 +129,6 @@ func (c *RPCClient) handleRequest(payload []byte) {
 		return
 	}
 	if req.SenderId == c.id {
-		fmt.Printf("Ignoring request from self: %s\n", req.RequestId)
 		return
 	}
 
@@ -143,7 +152,9 @@ func (c *RPCClient) handleRequest(payload []byte) {
 		}
 	} else {
 		result, resErr := handler(req.Params)
-		if resErr != nil {
+		if result == nil {
+			return
+		} else if resErr != nil {
 			res.Error = ResponseError{
 				Code:    500,
 				Message: fmt.Sprintf("error handling request: %s", resErr.Error()),
@@ -162,7 +173,7 @@ func (c *RPCClient) handleRequest(payload []byte) {
 	out, _ := json.Marshal(res)
 
 	topic := "rpc/response/" + req.SenderId
-	token := c.mqtt.Publish(topic, 1, false, out)
+	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		fmt.Printf("Failed to publish response: %s\n", token.Error())
 		return
@@ -191,7 +202,7 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 	}
 
 	topic := "rpc/" + targetId
-	token := c.mqtt.Publish(topic, 1, false, out)
+	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
 		close(c.pending[req.RequestId])
@@ -239,7 +250,7 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 		return nil, err
 	}
 	topic := "rpc/broadcast"
-	token := c.mqtt.Publish(topic, 1, false, out)
+	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
 		close(c.pending[req.RequestId])
@@ -256,7 +267,7 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 	}
 
 	topic := "rpc/response/" + c.id
-	token := c.mqtt.Subscribe(topic, 1, handler)
+	token := c.mqtt.Subscribe(topic, QOS, handler)
 	if token.Wait() && token.Error() != nil {
 		c.pendingMux.Lock()
 		close(c.pending[reqId])
@@ -307,7 +318,6 @@ func (c *RPCClient) handleResponse(payload []byte, reqId string) {
 	if res.Result == nil {
 		fmt.Printf("No result in response for request id %s\n", res.RequestId)
 		rep.err = fmt.Errorf("no result in response for request id %s", res.RequestId)
-		resCh <- rep
 		return
 	}
 	select {
