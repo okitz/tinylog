@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
-	"github.com/stretchr/testify/require"
+	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
 
 func TestLog(t *testing.T) {
@@ -29,7 +29,7 @@ func TestLog(t *testing.T) {
 			createTestFS(t)
 
 			log, err := NewLog(fs, dir, c)
-			require.NoError(t, err)
+			tutl.Require_NoError(t, err)
 
 			fn(t, log)
 		})
@@ -67,18 +67,18 @@ func testAppendRead(t *testing.T, log *Log) {
 		Value: []byte("hello world"),
 	}
 	off, err := log.Append(append)
-	require.NoError(t, err)
-	require.Equal(t, uint64(0), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(0), off)
 
 	read, err := log.Read(off)
-	require.NoError(t, err)
-	require.Equal(t, append.Value, read.Value)
+	tutl.Require_NoError(t, err)
+	tutl.Require_ByteEqual(t, append.Value, read.Value)
 }
 
 func testOutOfRangeErr(t *testing.T, log *Log) {
 	read, err := log.Read(1)
-	require.Nil(t, read)
-	require.Error(t, err)
+	tutl.Require_Nil(t, read)
+	tutl.Require_Error(t, err)
 }
 
 func testInitExisting(t *testing.T, o *Log) {
@@ -87,25 +87,25 @@ func testInitExisting(t *testing.T, o *Log) {
 	}
 	for i := 0; i < 3; i++ {
 		_, err := o.Append(append)
-		require.NoError(t, err)
+		tutl.Require_NoError(t, err)
 	}
-	require.NoError(t, o.Close())
+	tutl.Require_NoError(t, o.Close())
 
 	off, err := o.LowestOffset()
-	require.NoError(t, err)
-	require.Equal(t, uint64(0), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(0), off)
 	off, err = o.HighestOffset()
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(2), off)
 
 	n, err := NewLog(fs, o.Dir.Name(), o.Config)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 	off, err = n.LowestOffset()
-	require.NoError(t, err)
-	require.Equal(t, uint64(0), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(0), off)
 	off, err = n.HighestOffset()
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(2), off)
 	// lscmd([]string{"ls", "tmp"})
 
 }
@@ -115,17 +115,17 @@ func testReader(t *testing.T, log *Log) {
 		Value: []byte("hello world"),
 	}
 	off, err := log.Append(append)
-	require.NoError(t, err)
-	require.Equal(t, uint64(0), off)
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(0), off)
 
 	reader := log.Reader()
 	b, err := io.ReadAll(reader)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	read := &log_v1.Record{}
 	err = read.UnmarshalVT(b[lenWidth:])
-	require.NoError(t, err)
-	require.Equal(t, append.Value, read.Value)
+	tutl.Require_NoError(t, err)
+	tutl.Require_ByteEqual(t, append.Value, read.Value)
 }
 
 func testTruncate(t *testing.T, log *Log) {
@@ -134,14 +134,14 @@ func testTruncate(t *testing.T, log *Log) {
 	}
 	for i := 0; i < 3; i++ {
 		_, err := log.Append(append)
-		require.NoError(t, err)
+		tutl.Require_NoError(t, err)
 	}
 
 	err := log.Truncate(1)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	_, err = log.Read(0)
-	require.Error(t, err)
+	tutl.Require_Error(t, err)
 }
 
 func testRemove(t *testing.T, log *Log) {
@@ -150,11 +150,11 @@ func testRemove(t *testing.T, log *Log) {
 	}
 	for i := 0; i < 3; i++ {
 		_, err := log.Append(append)
-		require.NoError(t, err)
+		tutl.Require_NoError(t, err)
 	}
 	err := log.Remove()
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	err = log.Close()
-	require.Error(t, err)
+	tutl.Require_Error(t, err)
 }

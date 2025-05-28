@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
-	"github.com/stretchr/testify/require"
+	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
 
 func TestSegment(t *testing.T) {
 	createTestFS(t)
 	defer unmount()
-	require.NotNil(t, fs)
+	tutl.Require_NotNil(t, fs)
 
 	want := &log_v1.Record{Value: []byte("hello world")}
 
@@ -21,36 +21,36 @@ func TestSegment(t *testing.T) {
 	dir := "tmp"
 	fs.Mkdir(dir, 0000)
 	s, err := newSegment(fs, dir, 16, c)
-	require.NoError(t, err)
-	require.Equal(t, uint64(16), s.nextOffset, s.nextOffset)
-	require.False(t, s.IsMaxed())
+	tutl.Require_NoError(t, err)
+	tutl.Require_Equal(t, uint64(16), s.nextOffset)
+	tutl.Require_False(t, s.IsMaxed())
 
 	for i := uint64(0); i < 3; i++ {
 		off, err := s.Append(want)
-		require.NoError(t, err)
-		require.Equal(t, 16+i, off)
+		tutl.Require_NoError(t, err)
+		tutl.Require_Equal(t, 16+i, off)
 		got, err := s.Read(off)
-		require.NoError(t, err)
-		require.Equal(t, want.Value, got.Value)
+		tutl.Require_NoError(t, err)
+		tutl.Require_ByteEqual(t, want.Value, got.Value)
 	}
 
 	_, err = s.Append(want)
-	require.Equal(t, io.EOF, err)
+	tutl.Require_Equal(t, io.EOF, err)
 
 	// maxed index
-	require.True(t, s.IsMaxed())
+	tutl.Require_True(t, s.IsMaxed())
 	c.Segment.MaxStoreBytes = uint64(len(want.Value) * 3)
 	c.Segment.MaxIndexBytes = 1024
 
 	s.Sync()
 	s, err = newSegment(fs, dir, 16, c)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 	// maxed store
-	require.True(t, s.IsMaxed())
+	tutl.Require_True(t, s.IsMaxed())
 
 	err = s.Remove()
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 	s, err = newSegment(fs, dir, 16, c)
-	require.NoError(t, err)
-	require.False(t, s.IsMaxed())
+	tutl.Require_NoError(t, err)
+	tutl.Require_False(t, s.IsMaxed())
 }

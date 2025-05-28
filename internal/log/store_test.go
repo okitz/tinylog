@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	filesys "github.com/okitz/mqtt-log-pipeline/internal/filesys"
-	"github.com/stretchr/testify/require"
+	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )
@@ -18,17 +18,17 @@ var (
 func TestStoreAppendRead(t *testing.T) {
 	createTestFS(t)
 	defer unmount()
-	require.NotNil(t, fs)
+	tutl.Require_NotNil(t, fs)
 	tgt := "file1.store"
 	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
-	require.NotNil(t, f)
-	require.NoError(t, err)
+	tutl.Require_NotNil(t, f)
+	tutl.Require_NoError(t, err)
 
 	c := Config{}
 	c.Segment.MaxStoreBytes = 1024
 	s, err := newStore(f, c)
-	require.NotNil(t, s)
-	require.NoError(t, err)
+	tutl.Require_NotNil(t, s)
+	tutl.Require_NoError(t, err)
 	testAppend(t, s)
 	testRead(t, s)
 	testReadAt(t, s)
@@ -36,7 +36,7 @@ func TestStoreAppendRead(t *testing.T) {
 
 	f, _ = filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
 	s2, err := newStore(f, c)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 	testRead(t, s2)
 }
 
@@ -44,8 +44,8 @@ func testAppend(t *testing.T, s *store) {
 	t.Helper()
 	for i := uint64(1); i < 4; i++ {
 		n, pos, err := s.Append(write)
-		require.NoError(t, err)
-		require.Equal(t, pos+n, width*i)
+		tutl.Require_NoError(t, err)
+		tutl.Require_Equal(t, pos+n, width*i)
 	}
 }
 
@@ -54,8 +54,8 @@ func testRead(t *testing.T, s *store) {
 	var pos uint64
 	for i := uint64(1); i < 4; i++ {
 		read, err := s.Read(pos)
-		require.NoError(t, err)
-		require.Equal(t, write, read)
+		tutl.Require_NoError(t, err)
+		tutl.Require_ByteEqual(t, write, read)
 		pos += width
 	}
 }
@@ -65,16 +65,16 @@ func testReadAt(t *testing.T, s *store) {
 	for i, off := uint64(1), int64(0); i < 4; i++ {
 		b := make([]byte, lenWidth)
 		n, err := s.ReadAt(b, off)
-		require.NoError(t, err)
-		require.Equal(t, lenWidth, n)
+		tutl.Require_NoError(t, err)
+		tutl.Require_Equal(t, lenWidth, n)
 		off += int64(n)
 
 		size := enc.Uint64(b)
 		b = make([]byte, size)
 		n, err = s.ReadAt(b, off)
-		require.NoError(t, err)
-		require.Equal(t, write, b)
-		require.Equal(t, int(size), n)
+		tutl.Require_NoError(t, err)
+		tutl.Require_ByteEqual(t, write, b)
+		tutl.Require_Equal(t, int(size), n)
 		off += int64(n)
 	}
 }
@@ -82,29 +82,29 @@ func testReadAt(t *testing.T, s *store) {
 func TestStoreClose(t *testing.T) {
 	createTestFS(t)
 	defer unmount()
-	require.NotNil(t, fs)
+	tutl.Require_NotNil(t, fs)
 	tgt := "file1.txt"
 	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
 	defer f.Close()
-	require.NotNil(t, f)
-	require.NoError(t, err)
+	tutl.Require_NotNil(t, f)
+	tutl.Require_NoError(t, err)
 
 	c := Config{}
 	c.Segment.MaxStoreBytes = 1024
 	s, err := newStore(f, c)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 	_, _, err = s.Append(write)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	beforeSize, err := openFile(fs)
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	err = s.Close()
-	require.NoError(t, err)
+	tutl.Require_NoError(t, err)
 
 	afterSize, err := openFile(fs)
-	require.NoError(t, err)
-	require.True(t, afterSize > beforeSize)
+	tutl.Require_NoError(t, err)
+	tutl.Require_True(t, afterSize > beforeSize)
 }
 
 func openFile(fs *littlefs.LFS) (size int64, err error) {
