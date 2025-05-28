@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"time"
+
 	// "machine"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -53,7 +55,7 @@ func main() {
 		return
 	}
 	fmt.Printf("Read record at offset %d: %s\n", off, string(read.Value))
-
+	// TestElectionLeaderStopThenResume5()
 }
 
 func createFs() error {
@@ -118,4 +120,16 @@ var messageHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Messa
 		}
 		fmt.Printf("Read record at offset %d: %s\n", off-10, string(read.Value))
 	}
+}
+
+func TestElectionLeaderStopThenResume5() {
+	h := NewHarness(5)
+	defer h.Shutdown()
+
+	h.StopNode("node-00")
+	time.Sleep(time.Millisecond * 150)
+
+	h.ResumeNode("node-01")
+	time.Sleep(time.Millisecond * 300)
+
 }

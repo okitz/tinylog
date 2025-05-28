@@ -3,7 +3,6 @@ package raft
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -61,16 +60,6 @@ type Raft struct {
 	mu                sync.Mutex
 }
 
-type RPCClient interface {
-	CallRPC(ctx context.Context, targetId string, method string, reqParams json.RawMessage) (json.RawMessage, error)
-	BroadcastRPC(ctx context.Context, method string, reqParams json.RawMessage) (<-chan RPCResopnse, error)
-}
-
-type RPCResopnse interface {
-	Error() error
-	Raw() json.RawMessage
-}
-
 func newRaftState(log *logpkg.Log, peers []string) *raftState {
 	return &raftState{
 		log:         log,
@@ -95,7 +84,7 @@ func NewRaft(id string, log *logpkg.Log, peers []string, rpcClt RPCClient) *Raft
 	}
 
 	go func() {
-		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond) // ランダムな遅延を追加
+		time.Sleep(time.Duration(100 * time.Millisecond)) // 遅延を追加
 		r.mu.Lock()
 		r.lastElectionReset = time.Now()
 		r.mu.Unlock()
@@ -122,11 +111,11 @@ func (r *Raft) Resume() {
 	}
 }
 
-func (r *Raft) GetNodeInfo() map[string]interface{} {
+func (r *Raft) GetNodeInfo() map[string]any {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"id":                r.Id,
 		"state":             r.state.String(),
 		"currentTerm":       r.currentTerm,
@@ -277,8 +266,8 @@ func (r *Raft) startElection() error {
 	if err != nil {
 		return err
 	}
-	repCh, err := r.rpcClt.BroadcastRPC(ctx, "raft.RequestVote", reqJSON)
-	if err != nil {
+	var repCh <-chan RPCResopnse
+	if repCh, err = r.rpcClt.BroadcastRPC(ctx, "raft.RequestVote", reqJSON); err != nil {
 		return err
 	}
 
@@ -294,6 +283,7 @@ func (r *Raft) startElection() error {
 		case rawRep, ok := <-repCh:
 			if !ok {
 				fmt.Println(r.Id, "No more responses for RequestVote")
+				go r.runElectionTimer()
 				return nil
 			}
 			repJSON := rawRep.Raw()
@@ -403,8 +393,8 @@ func (r *Raft) sendLeaderHeartbeats() error {
 		fmt.Println(r.Id, "Error marshalling AppendEntriesRequest:", err)
 		return err
 	}
-	repCh, err := r.rpcClt.BroadcastRPC(ctx, "raft.AppendEntries", reqJSON)
-	if err != nil {
+	var repCh <-chan RPCResopnse
+	if repCh, err = r.rpcClt.BroadcastRPC(ctx, "raft.AppendEntries", reqJSON); err != nil {
 		return err
 	}
 

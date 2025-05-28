@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/aperturerobotics/protobuf-go-lite v0.9.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
+	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.10.0
 	tinygo.org/x/tinyfs v0.5.0

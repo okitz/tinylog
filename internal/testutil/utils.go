@@ -17,3 +17,9 @@ func WaitForCondition(t *testing.T, timeout time.Duration, interval time.Duratio
 		time.Sleep(interval)
 	}
 }
+
+func Require_NotEqual(t *testing.T, a, b interface{}) {
+	if a == b {
+		t.Fatalf("expected not equal: %v, %v", a, b)
+	}
+}

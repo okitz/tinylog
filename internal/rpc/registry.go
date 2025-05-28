@@ -27,8 +27,24 @@ func (r *Registry) Get(name string) Handler {
 	return r.handlers[name]
 }
 
+// Protobufで定義されたリクエストとレスポンスを処理するRPCハンドラを登録
+// RaftのRPCメソッドを登録するための関数
+func RegisterProtoHandler[Req, Rep protobuf_go_lite.JSONMessage](
+	c *RPCClient,
+	req Req,
+	pHandler func(Req) (Rep, error),
+	methodName string,
+) {
+	handler := makeProtoRPCHandler(
+		req,
+		pHandler,
+		methodName,
+	)
+	c.RegisterMethod(methodName, handler)
+}
+
 // Protobufで定義されたresquestとresponseを処理するRPCハンドラを作成する
-func MakeProtoRPCHandler[Req, Rep protobuf_go_lite.JSONMessage](
+func makeProtoRPCHandler[Req, Rep protobuf_go_lite.JSONMessage](
 	req Req,
 	handle func(Req) (Rep, error),
 	methodName string,

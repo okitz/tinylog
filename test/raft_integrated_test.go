@@ -151,30 +151,6 @@ func TestElectionFollowerStopThenComesBack(t *testing.T) {
 	}
 }
 
-// フォロワーが切断されてタームが進んでいた場合、新たなリーダーが選出
-func TestElectionFollowerDisconnectThenComesBack(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
-
-	h := NewHarness(t, 3)
-	defer h.Shutdown()
-
-	origLeaderId, origTerm := h.CheckSingleLeader()
-
-	otherId := h.nodeIds[0]
-	if otherId == origLeaderId {
-		otherId = h.nodeIds[1] // 別のノードを選ぶ
-	}
-	h.DisconnectNode(otherId)
-	time.Sleep(650 * time.Millisecond)
-	h.ReconnectNode(otherId)
-	time.Sleep(time.Millisecond * 150)
-
-	_, newTerm := h.CheckSingleLeader()
-	if newTerm <= origTerm {
-		t.Errorf("newTerm=%d, origTerm=%d", newTerm, origTerm)
-	}
-}
-
 func TestElectionStopLoop(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
 

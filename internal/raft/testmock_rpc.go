@@ -41,16 +41,28 @@ func (c *FakeRPCClient) CallRPC(
 	return nil, fmt.Errorf("CallRPC not implemented in FakeRPCClient")
 }
 
+func (c *FakeRPCClient) Disconnect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.trp.DisconnectNode(c.id)
+}
+
+func (c *FakeRPCClient) Reconnect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.trp.ReconnectNode(c.id)
+}
+
 type FakeRPCTransporter struct {
-	mu     sync.RWMutex
-	nodes  map[string]*Raft
-	killed map[string]*atomic.Bool
+	mu           sync.RWMutex
+	nodes        map[string]*Raft
+	disconnected map[string]*atomic.Bool
 }
 
 func NewFakeRPCTransporter() *FakeRPCTransporter {
 	return &FakeRPCTransporter{
-		nodes:  make(map[string]*Raft),
-		killed: make(map[string]*atomic.Bool),
+		nodes:        make(map[string]*Raft),
+		disconnected: make(map[string]*atomic.Bool),
 	}
 }
 
@@ -59,21 +71,21 @@ func (f *FakeRPCTransporter) RegisterNode(r *Raft) {
 	defer f.mu.Unlock()
 
 	f.nodes[r.Id] = r
-	f.killed[r.Id] = &atomic.Bool{}
+	f.disconnected[r.Id] = &atomic.Bool{}
 }
 
-func (f *FakeRPCTransporter) KillNode(id string) {
+func (f *FakeRPCTransporter) DisconnectNode(id string) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	if b, ok := f.killed[id]; ok {
+	if b, ok := f.disconnected[id]; ok {
 		b.Store(true)
 	}
 }
 
-func (f *FakeRPCTransporter) RecoverNode(id string) {
+func (f *FakeRPCTransporter) ReconnectNode(id string) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	if b, ok := f.killed[id]; ok {
+	if b, ok := f.disconnected[id]; ok {
 		b.Store(false)
 	}
 }
@@ -86,7 +98,7 @@ func (f *FakeRPCTransporter) BroadcastTrp(
 ) (<-chan RPCResopnse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	if f.killed[from].Load() {
+	if f.disconnected[from].Load() {
 		return nil, nil
 	}
 
@@ -96,7 +108,7 @@ func (f *FakeRPCTransporter) BroadcastTrp(
 		if id == from {
 			continue
 		}
-		if f.killed[id].Load() {
+		if f.disconnected[id].Load() {
 			continue
 		}
 		wg.Add(1)

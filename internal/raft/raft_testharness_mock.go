@@ -1,22 +1,17 @@
-package test
+package raft
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
 	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
-	mqtt "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
-	"github.com/okitz/mqtt-log-pipeline/internal/raft"
-	"github.com/okitz/mqtt-log-pipeline/internal/rpc"
 	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 type Harness struct {
-	raftNodes  []*raft.Raft
-	rpcClients []*rpc.RPCClient
+	raftNodes  []*Raft
+	rpcClients []*FakeRPCClient
 	connected  []bool
 	nodeIds    []string
 	n          int
@@ -24,30 +19,18 @@ type Harness struct {
 }
 
 func NewHarness(t *testing.T, n int) *Harness {
-	raftNodes := make([]*raft.Raft, n)
-	rpcClients := make([]*rpc.RPCClient, n)
+	raftNodes := make([]*Raft, n)
+	rpcClients := make([]*FakeRPCClient, n)
 	connected := make([]bool, n)
 	nodeIds := make([]string, n)
+	tp := NewFakeRPCTransporter()
 
 	for i := 0; i < n; i++ {
 		nodeIds[i] = fmt.Sprintf("node-%02d", i)
 	}
 
 	for i, nodeId := range nodeIds {
-		cfg := mqtt.Config{
-			Broker:   "tcp://mosquitto:1883",
-			ClientID: nodeId,
-			Timeout:  time.Second * 30,
-		}
-		mqttClient, err := mqtt.NewClient(cfg)
-		if err != nil {
-			t.Fatalf("MQTT接続エラー: %v", err)
-		}
-
-		rpcClient := rpc.NewRPCClient(mqttClient, nodeId)
-		if err := rpcClient.Start(); err != nil {
-			t.Fatalf("RPCクライアントの起動に失敗: %v", err)
-		}
+		rpcClient := NewFakeRPCClient(nodeId, tp)
 		var peers []string
 		for j, peerId := range nodeIds {
 			if nodeId == peerId {
@@ -56,29 +39,14 @@ func NewHarness(t *testing.T, n int) *Harness {
 			}
 		}
 
-		raft := raft.NewRaft(nodeId, (*logpkg.Log)(nil), peers, rpcClient)
-
-		methodNameRV := "raft.RequestVote"
-		handlerRV := rpc.MakeProtoRPCHandler(
-			&raft_v1.RequestVoteRequest{},
-			raft.HandleRequestVoteRequest,
-			methodNameRV,
-		)
-		rpcClient.RegisterMethod(methodNameRV, handlerRV)
-
-		methodNameAE := "raft.AppendEntries"
-		handlerAE := rpc.MakeProtoRPCHandler(
-			&raft_v1.AppendEntriesRequest{},
-			raft.HandleAppendEntriesRequest,
-			methodNameAE,
-		)
-		rpcClient.RegisterMethod(methodNameAE, handlerAE)
-
+		raft := NewRaft(nodeId, (*logpkg.Log)(nil), peers, rpcClient)
+		tp.RegisterNode(raft)
 		raftNodes[i] = raft
 		rpcClients[i] = rpcClient
 		connected[i] = true
 	}
 
+	fmt.Println("new harness with nodes:", nodeIds)
 	return &Harness{
 		raftNodes:  raftNodes,
 		rpcClients: rpcClients,
@@ -164,7 +132,7 @@ func (h Harness) CheckSingleLeader() (string, uint64) {
 func (h Harness) CheckNoLeader() {
 	for _, node := range h.raftNodes {
 		nodeInfo := node.GetNodeInfo()
-		require.NotEqual(h.t, nodeInfo["state"], "Leader")
+		tutl.Require_NotEqual(h.t, nodeInfo["state"], "Leader")
 	}
 
 }
@@ -194,7 +162,7 @@ func (h *Harness) ResumeNode(nodeId string) {
 func (h *Harness) DisconnectNode(nodeId string) {
 	for i, id := range h.nodeIds {
 		if id == nodeId {
-			h.raftNodes[i].Disconnect()
+			h.rpcClients[i].Disconnect()
 			h.connected[i] = false
 			return
 		}
@@ -205,7 +173,7 @@ func (h *Harness) DisconnectNode(nodeId string) {
 func (h *Harness) ReconnectNode(nodeId string) {
 	for i, id := range h.nodeIds {
 		if id == nodeId {
-			h.raftNodes[i].Reconnect()
+			h.rpcClients[i].Reconnect()
 			h.connected[i] = true
 			return
 		}

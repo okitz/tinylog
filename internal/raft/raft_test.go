@@ -1,14 +1,12 @@
 package raft
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
 
 type stubLog struct{}
@@ -18,40 +16,37 @@ func (s *stubLog) Read(offset uint64) (*log_v1.Record, error) {
 	return &log_v1.Record{}, nil
 }
 
-func setupFakeCluster(n int64) ([]*Raft, *FakeRPCTransporter) {
-	tp := NewFakeRPCTransporter()
-	nodes := make([]*Raft, n)
-	nodeIds := make([]string, n)
-	for i := int64(0); i < n; i++ {
-		nodeIds[i] = fmt.Sprintf("node-%02d", i+1)
+// startElection()を直接呼び出したノードがリーダーになることを確認
+func TestClusterElection(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+	raft0 := h.raftNodes[0]
+	// ノード0をLeaderにする
+	err := raft0.startElection()
+	if err != nil {
+		t.Fatalf("startElection failed: %v", err)
 	}
 
-	for i, nodeId := range nodeIds {
-		clt := NewFakeRPCClient(nodeId, tp)
-		// 自分自身を除外したピアリストを作成
-		var peers []string
-		for j, s := range nodeIds {
-			if s == nodeId {
-				peers = append(append([]string{}, nodeIds[:j]...), nodeIds[j+1:]...)
-				break
-			}
-		}
-		r := NewRaft(nodeId, (*logpkg.Log)(nil), peers, clt)
-		r.becomeFollower(0)
-		nodes[i] = r
-		tp.RegisterNode(r)
+	// Leaderになっていることを確認
+	if raft0.state != Leader {
+		t.Errorf("expected node1 to become Leader; got %v", raft0.state)
 	}
-	return nodes, tp
+	time.Sleep(100 * time.Millisecond) // 少し待つ
+	if raft0.state != Leader {
+		t.Errorf("expected node1 to be Leader; got %v", raft0.state)
+	}
 }
 
+// HandleRequestVoteRequest を直接呼び出すテスト
 func TestHandleRequestVoteRequest(t *testing.T) {
-	nodes, _ := setupFakeCluster(1)
-	raft := nodes[0]
-	raft.currentTerm = 5
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+	raft0 := h.raftNodes[0]
+	raft0.currentTerm = 5
 
 	// Term が小さいリクエスト → 拒否、Term は変わらず
 	req := &raft_v1.RequestVoteRequest{Term: 4, CandidateId: ""}
-	rep, err := raft.HandleRequestVoteRequest(req)
+	rep, err := raft0.HandleRequestVoteRequest(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,42 +55,44 @@ func TestHandleRequestVoteRequest(t *testing.T) {
 	}
 
 	// 同じTerm＆未投票 → 承認
-	req = &raft_v1.RequestVoteRequest{Term: 5, CandidateId: "node-02"}
-	rep, _ = raft.HandleRequestVoteRequest(req)
+	req = &raft_v1.RequestVoteRequest{Term: 5, CandidateId: "node-01"}
+	rep, _ = raft0.HandleRequestVoteRequest(req)
 	if rep.Term != 5 || !rep.VoteGranted {
 		t.Errorf("expected Term=5,VoteGranted=true; got Term=%d,VoteGranted=%v", rep.Term, rep.VoteGranted)
 	}
-	if raft.votedFor != "node-02" {
-		t.Errorf("expected votedFor=node-02; got %s", raft.votedFor)
+	if raft0.votedFor != "node-01" {
+		t.Errorf("expected votedFor=node-01; got %s", raft0.votedFor)
 	}
 
 	// 同じTermでも別の候補者に2度目投票は拒否
-	req = &raft_v1.RequestVoteRequest{Term: 5, CandidateId: "node-03"}
-	rep, _ = raft.HandleRequestVoteRequest(req)
+	req = &raft_v1.RequestVoteRequest{Term: 5, CandidateId: "node-02"}
+	rep, _ = raft0.HandleRequestVoteRequest(req)
 	if rep.VoteGranted {
 		t.Error("expected second vote in same term to be denied")
 	}
 
 	// より大きいTerm → フォロワーモード＆投票リセット後に承認
-	raft.state = Candidate
-	req = &raft_v1.RequestVoteRequest{Term: 6, CandidateId: "node-03"}
-	rep, _ = raft.HandleRequestVoteRequest(req)
-	if raft.state != Follower {
-		t.Errorf("expected becomeFollower on higher term; got state=%v", raft.state)
+	raft0.state = Candidate
+	req = &raft_v1.RequestVoteRequest{Term: 6, CandidateId: "node-02"}
+	rep, _ = raft0.HandleRequestVoteRequest(req)
+	if raft0.state != Follower {
+		t.Errorf("expected becomeFollower on higher term; got state=%v", raft0.state)
 	}
 	if !rep.VoteGranted {
 		t.Error("expected vote granted for new term")
 	}
 }
 
+// HandleAppendEntriesRequest を直接呼び出すテスト
 func TestHandleAppendEntriesRequest(t *testing.T) {
-	nodes, _ := setupFakeCluster(1)
-	raft := nodes[0]
-	raft.currentTerm = 5
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+	raft0 := h.raftNodes[0]
+	raft0.currentTerm = 5
 
 	// Term が小さいエントリ → 拒否
-	req := &raft_v1.AppendEntriesRequest{Term: 4, LeaderId: "node-02"}
-	rep, err := raft.HandleAppendEntriesRequest(req)
+	req := &raft_v1.AppendEntriesRequest{Term: 4, LeaderId: "node-01"}
+	rep, err := raft0.HandleAppendEntriesRequest(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,114 +101,216 @@ func TestHandleAppendEntriesRequest(t *testing.T) {
 	}
 
 	// 同じTerm → フォロワーに遷移して承認
-	req = &raft_v1.AppendEntriesRequest{Term: 5, LeaderId: "node-02"}
-	rep, _ = raft.HandleAppendEntriesRequest(req)
+	req = &raft_v1.AppendEntriesRequest{Term: 5, LeaderId: "node-01"}
+	rep, _ = raft0.HandleAppendEntriesRequest(req)
 	if rep.Term != 5 || !rep.Success {
 		t.Errorf("expected Term=5, Success=true; got Term=%d, Success=%v", rep.Term, rep.Success)
 	}
-	if raft.state != Follower {
-		t.Errorf("expected state=Follower; got %v", raft.state)
+	if raft0.state != Follower {
+		t.Errorf("expected state=Follower; got %v", raft0.state)
 	}
-	if raft.leaderId != "node-02" {
-		t.Errorf("expected leaderId=node-02; got %s", raft.leaderId)
+	if raft0.leaderId != "node-01" {
+		t.Errorf("expected leaderId=node-01; got %s", raft0.leaderId)
 	}
 
 	// より大きいTerm → フォロワー遷移＆承認
-	raft.state = Candidate
-	req = &raft_v1.AppendEntriesRequest{Term: 6, LeaderId: "node-03"}
-	rep, _ = raft.HandleAppendEntriesRequest(req)
-	if raft.state != Follower {
-		t.Errorf("expected becomeFollower on higher term; got state=%v", raft.state)
+	raft0.state = Candidate
+	req = &raft_v1.AppendEntriesRequest{Term: 6, LeaderId: "node-02"}
+	rep, _ = raft0.HandleAppendEntriesRequest(req)
+	if raft0.state != Follower {
+		t.Errorf("expected becomeFollower on higher term; got state=%v", raft0.state)
 	}
 	if rep.Success != true {
 		t.Error("expected Success=true for higher term")
 	}
-	if raft.leaderId != "node-03" {
-		t.Errorf("expected leaderId updated to node-03; got %s", raft.leaderId)
+	if raft0.leaderId != "node-02" {
+		t.Errorf("expected leaderId updated to node-02; got %s", raft0.leaderId)
 	}
 }
 
-func TestClusterElection(t *testing.T) {
-	nodes, _ := setupFakeCluster(3)
+//// テストハーネスを使ったテスト ////
 
-	// ノード1で選挙開始
-	err := nodes[0].startElection()
-	if err != nil {
-		t.Fatalf("startElection failed: %v", err)
-	}
-
-	// Leaderになっていることを確認
-	if nodes[0].state != Leader {
-		t.Errorf("expected node1 to become Leader; got %v", nodes[0].state)
-	}
-
+func TestMQTTElectionBasic(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+	// クラスタ初期化直後はリーダーがいない
+	h.CheckNoLeader()
+	// しばらく待つとリーダーが選出される
+	h.CheckSingleLeader()
 }
 
-func TestLeaderStable(t *testing.T) {
+func TestMQTTElectionLeaderStop(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
 
-	nodes, _ := setupFakeCluster(3)
+	origLeaderId, origTerm := h.CheckSingleLeader()
 
-	// ノード1をLeaderにする
-	err := nodes[0].startElection()
-	if err != nil {
-		t.Fatalf("startElection failed: %v", err)
+	h.StopNode(origLeaderId)
+	time.Sleep(time.Millisecond * 100) // リーダーが切断されるのを待つ
+
+	newLeaderId, newTerm := h.CheckSingleLeader()
+	if newLeaderId == origLeaderId {
+		t.Errorf("want new leader to be different from orig leader")
 	}
-
-	time.Sleep(100 * time.Millisecond) // 少し待つ
-	if nodes[0].state != Leader {
-		t.Errorf("expected node1 to become Leader; got %v", nodes[0].state)
+	if newTerm <= origTerm {
+		t.Errorf("want newTerm <= origTerm, got %d and %d", newTerm, origTerm)
 	}
 }
 
-// リーダーがkillされた後、他のノードが新しいリーダーになることを確認するテスト
-func TestNewLeaderAfterKill(t *testing.T) {
-	nodes, tp := setupFakeCluster(5)
+func TestElectionLeaderAndAnotherStop(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
 
-	// ノード1をLeaderにする
-	err := nodes[0].startElection()
-	if err != nil {
-		t.Fatalf("startElection failed: %v", err)
+	origLeaderId, _ := h.CheckSingleLeader()
+
+	h.StopNode(origLeaderId)
+	otherId := h.nodeIds[0]
+	if otherId == origLeaderId {
+		otherId = h.nodeIds[1] // 別のノードを選ぶ
 	}
-	if nodes[0].state != Leader {
-		t.Errorf("expected node1 to become Leader; got %v", nodes[0].state)
+	h.StopNode(otherId)
+
+	time.Sleep(time.Millisecond * 500) // リーダーともう一つのノードが切断されるのを待つ
+	h.CheckNoLeader()
+
+	h.ResumeNode(otherId)
+	h.CheckSingleLeader()
+}
+
+func TestStopAllThenRestore(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	time.Sleep(time.Millisecond * 100)
+	for _, id := range h.nodeIds {
+		h.StopNode(id)
 	}
+	time.Sleep(time.Millisecond * 450)
+	h.CheckNoLeader()
 
-	// ノード1をkill
-	tp.KillNode(nodes[0].Id)
-	fmt.Println("Node 1 killed, waiting for new Leader")
+	for _, id := range h.nodeIds {
+		h.ResumeNode(id)
+	}
+	h.CheckSingleLeader()
+}
 
-	tutl.WaitForCondition(t, 2*time.Second, 100*time.Millisecond, func() bool {
-		lCnt := 0
-		for i := 1; i < len(nodes); i++ {
-			if nodes[i].state == Leader {
-				lCnt++
-				fmt.Printf("Node %s is now Leader\n", nodes[i].Id)
-			}
+func TestElectionLeaderStopThenResume(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+	origLeaderId, _ := h.CheckSingleLeader()
+
+	h.StopNode(origLeaderId)
+
+	time.Sleep(time.Millisecond * 350)
+	newLeaderId, newTerm := h.CheckSingleLeader()
+
+	h.ResumeNode(origLeaderId)
+	time.Sleep(time.Millisecond * 150)
+
+	againLeaderId, againTerm := h.CheckSingleLeader()
+
+	if newLeaderId != againLeaderId {
+		t.Errorf("again leader id got %s; want %s", againLeaderId, newLeaderId)
+	}
+	if againTerm != newTerm {
+		t.Errorf("again term got %d; want %d", againTerm, newTerm)
+	}
+}
+
+func TestElectionLeaderStopThenResume5(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 5)
+	defer h.Shutdown()
+
+	origLeaderId, _ := h.CheckSingleLeader()
+
+	h.StopNode(origLeaderId)
+	time.Sleep(time.Millisecond * 150)
+	newLeaderId, newTerm := h.CheckSingleLeader()
+
+	h.ResumeNode(origLeaderId)
+	time.Sleep(time.Millisecond * 300)
+
+	againLeaderId, againTerm := h.CheckSingleLeader()
+
+	if newLeaderId != againLeaderId {
+		t.Errorf("again leader id got %s; want %s", againLeaderId, newLeaderId)
+	}
+	if againTerm != newTerm {
+		t.Errorf("again term got %d; want %d", againTerm, newTerm)
+	}
+}
+
+// フォロワーがダウンしてもリーダーは変わらない
+func TestElectionFollowerStopThenComesBack(t *testing.T) {
+	// defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	origLeaderId, origTerm := h.CheckSingleLeader()
+
+	otherId := h.nodeIds[0]
+	if otherId == origLeaderId {
+		otherId = h.nodeIds[1] // 別のノードを選ぶ
+	}
+	h.StopNode(otherId)
+	time.Sleep(650 * time.Millisecond)
+	h.ResumeNode(otherId)
+	time.Sleep(time.Millisecond * 150)
+
+	_, newTerm := h.CheckSingleLeader()
+	if newTerm != origTerm {
+		t.Errorf("newTerm=%d, origTerm=%d", newTerm, origTerm)
+	}
+}
+
+// フォロワーが切断されてタームが進んでいた場合、新たなリーダーが選出
+func TestElectionFollowerDisconnectThenComesBack(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	origLeaderId, origTerm := h.CheckSingleLeader()
+
+	otherId := h.nodeIds[0]
+	if otherId == origLeaderId {
+		otherId = h.nodeIds[1] // 別のノードを選ぶ
+	}
+	h.DisconnectNode(otherId)
+	time.Sleep(650 * time.Millisecond)
+	h.ReconnectNode(otherId)
+	time.Sleep(time.Millisecond * 150)
+
+	_, newTerm := h.CheckSingleLeader()
+	if newTerm <= origTerm {
+		t.Errorf("newTerm=%d, origTerm=%d", newTerm, origTerm)
+	}
+}
+
+func TestElectionStopLoop(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	for cycle := 0; cycle < 5; cycle++ {
+		leaderId, _ := h.CheckSingleLeader()
+
+		h.StopNode(leaderId)
+		otherId := h.nodeIds[0]
+		if otherId == leaderId {
+			otherId = h.nodeIds[1] // 別のノードを選ぶ
 		}
-		return lCnt == 1
-	}, fmt.Sprintf("expected another node to become Leader; got node2=%v, node3=%v, node4=%v, node5=%v",
-		nodes[1].state, nodes[2].state, nodes[3].state, nodes[4].state))
+		h.StopNode(otherId)
+		time.Sleep(time.Millisecond * 310)
+		h.CheckNoLeader()
 
-	tp.RecoverNode(nodes[0].Id) // ノード1を復活させる
-	fmt.Println("Node 1 recovered")
+		h.ResumeNode(otherId)
+		h.ResumeNode(leaderId)
 
-	tutl.WaitForCondition(t, 2*time.Second, 100*time.Millisecond, func() bool {
-		return nodes[0].state == Follower
-	}, "expected node1 to become Follower")
-
-}
-
-// Termが増加することを確認するテスト
-func TestTermIncreaseOnElection(t *testing.T) {
-	nodes, _ := setupFakeCluster(3)
-
-	initialTerm := nodes[0].currentTerm
-	err := nodes[0].startElection()
-	if err != nil {
-		t.Fatalf("startElection failed: %v", err)
-	}
-
-	if nodes[0].currentTerm <= initialTerm {
-		t.Errorf("term did not increase after election; got %d, want > %d", nodes[0].currentTerm, initialTerm)
+		time.Sleep(time.Millisecond * 150)
 	}
 }

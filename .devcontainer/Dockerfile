@@ -1,8 +1,15 @@
 FROM golang:1.24.3
 
+
 RUN apt-get update && apt-get install -y \
-    git nano sudo mosquitto-clients protobuf-compiler\
+    git nano sudo dpkg mosquitto-clients protobuf-compiler\
     && rm -rf /var/lib/apt/lists/*
+
+# install TinyGo
+ARG TINYGO_VERSION=0.37.0
+ADD https://github.com/tinygo-org/tinygo/releases/download/v${TINYGO_VERSION}/tinygo_${TINYGO_VERSION}_amd64.deb /tmp/tinygo.deb
+RUN dpkg -i /tmp/tinygo.deb && \
+    rm /tmp/tinygo.deb
 
 # Create a non-root user
 ARG USERNAME=vscode
