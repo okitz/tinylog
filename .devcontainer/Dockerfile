@@ -21,6 +21,12 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
+ENV GOPATH=/home/$USERNAME/go
+ENV PATH=$PATH:$GOPATH/bin
+
 USER $USERNAME
+
+RUN mkdir -p $GOPATH/pkg/mod/cache/download && \
+    go install github.com/aperturerobotics/protobuf-go-lite/cmd/protoc-gen-go-lite@latest
 
 WORKDIR /app

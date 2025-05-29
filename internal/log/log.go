@@ -82,7 +82,7 @@ func (l *Log) setup() error {
 }
 
 // TODO: segmentごとのロック
-func (l *Log) Append(record *log_v1.Record) (uint64, error) {
+func (l *Log) Append(value []byte) (uint64, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (l *Log) Append(record *log_v1.Record) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if flag, err := l.activeSegment.ToBeMaxed(record); err != nil {
+	if flag, err := l.activeSegment.ToBeMaxed(value); err != nil {
 		return 0, err
 	} else if flag {
 		err = l.newSegment(highestOffset + 1)
@@ -99,7 +99,7 @@ func (l *Log) Append(record *log_v1.Record) (uint64, error) {
 		}
 	}
 
-	off, err := l.activeSegment.Append(record)
+	off, err := l.activeSegment.Append(value)
 	if err != nil {
 		return 0, err
 	}

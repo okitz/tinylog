@@ -244,7 +244,7 @@ func TestElectionLeaderStopThenResume5(t *testing.T) {
 
 // フォロワーがダウンしてもリーダーは変わらない
 func TestElectionFollowerStopThenComesBack(t *testing.T) {
-	// defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
 
 	h := NewHarness(t, 3)
 	defer h.Shutdown()

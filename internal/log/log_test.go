@@ -63,16 +63,14 @@ func lscmd(argv []string) {
 }
 
 func testAppendRead(t *testing.T, log *Log) {
-	append := &log_v1.Record{
-		Value: []byte("hello world"),
-	}
-	off, err := log.Append(append)
+	value := []byte("hello world")
+	off, err := log.Append(value)
 	tutl.Require_NoError(t, err)
 	tutl.Require_Equal(t, uint64(0), off)
 
 	read, err := log.Read(off)
 	tutl.Require_NoError(t, err)
-	tutl.Require_ByteEqual(t, append.Value, read.Value)
+	tutl.Require_ByteEqual(t, value, read.Value)
 }
 
 func testOutOfRangeErr(t *testing.T, log *Log) {
@@ -82,11 +80,9 @@ func testOutOfRangeErr(t *testing.T, log *Log) {
 }
 
 func testInitExisting(t *testing.T, o *Log) {
-	append := &log_v1.Record{
-		Value: []byte("hello world"),
-	}
+	value := []byte("hello world")
 	for i := 0; i < 3; i++ {
-		_, err := o.Append(append)
+		_, err := o.Append(value)
 		tutl.Require_NoError(t, err)
 	}
 	tutl.Require_NoError(t, o.Close())
@@ -111,10 +107,8 @@ func testInitExisting(t *testing.T, o *Log) {
 }
 
 func testReader(t *testing.T, log *Log) {
-	append := &log_v1.Record{
-		Value: []byte("hello world"),
-	}
-	off, err := log.Append(append)
+	value := []byte("hello world")
+	off, err := log.Append(value)
 	tutl.Require_NoError(t, err)
 	tutl.Require_Equal(t, uint64(0), off)
 
@@ -125,15 +119,13 @@ func testReader(t *testing.T, log *Log) {
 	read := &log_v1.Record{}
 	err = read.UnmarshalVT(b[lenWidth:])
 	tutl.Require_NoError(t, err)
-	tutl.Require_ByteEqual(t, append.Value, read.Value)
+	tutl.Require_ByteEqual(t, value, read.Value)
 }
 
 func testTruncate(t *testing.T, log *Log) {
-	append := &log_v1.Record{
-		Value: []byte("hello world"),
-	}
+	value := []byte("hello world")
 	for i := 0; i < 3; i++ {
-		_, err := log.Append(append)
+		_, err := log.Append(value)
 		tutl.Require_NoError(t, err)
 	}
 
@@ -145,11 +137,9 @@ func testTruncate(t *testing.T, log *Log) {
 }
 
 func testRemove(t *testing.T, log *Log) {
-	append := &log_v1.Record{
-		Value: []byte("hello world"),
-	}
+	value := []byte("hello world")
 	for i := 0; i < 3; i++ {
-		_, err := log.Append(append)
+		_, err := log.Append(value)
 		tutl.Require_NoError(t, err)
 	}
 	err := log.Remove()

@@ -61,9 +61,12 @@ func newSegment(fs *littlefs.LFS, dirname string, baseOffset uint64, c Config) (
 	return s, nil
 }
 
-func (s *segment) Append(record *log_v1.Record) (offset uint64, err error) {
+func (s *segment) Append(value []byte) (offset uint64, err error) {
 	cur := s.nextOffset
-	record.Offset = cur
+	record := &log_v1.Record{
+		Value:  value,
+		Offset: cur,
+	}
 	p, err := record.MarshalVT()
 	if err != nil {
 		return 0, err
@@ -103,7 +106,11 @@ func (s *segment) IsMaxed() bool {
 		s.index.IsMaxed()
 }
 
-func (s *segment) ToBeMaxed(record *log_v1.Record) (bool, error) {
+func (s *segment) ToBeMaxed(value []byte) (bool, error) {
+	record := &log_v1.Record{
+		Value:  value,
+		Offset: s.nextOffset,
+	}
 	p, err := record.MarshalVT()
 	if err != nil {
 		return false, err

@@ -1,0 +1,31 @@
+Connecting to MQTT broker at tcp://mosquitto:1883
+NewRaft: id= node-00
+Connecting to MQTT broker at tcp://mosquitto:1883
+NewRaft: id= node-01
+Connecting to MQTT broker at tcp://mosquitto:1883
+NewRaft: id= node-02
+node-00 Election timeout; last reset at 1748449326813, now at 1748449326984; starting election
+node-00 startElection: term= 1
+node-01 HandleRequestVoteRequest: term= 1 candidate= node-00
+node-01 becomeFollower: new term= 1
+node-01 Vote granted to candidate= node-00
+node-02 HandleRequestVoteRequest: term= 1 candidate= node-00
+node-02 becomeFollower: new term= 1
+node-02 Vote granted to candidate= node-00
+node-00 Received vote reply: granted= true
+2
+node-00 becomeLeader: id= node-00
+node-00 sendLeaderHeartbeats: term=1, now at 1748449326986
+node-02 HandleAppendEntriesRequest: term= 1 leader= node-00
+node-02 AppendEntriesRequest: same term, processing
+node-01 HandleAppendEntriesRequest: term= 1 leader= node-00
+node-01 AppendEntriesRequest: same term, processing
+node-00 AppendEntries reply: success=true, term=1, now at 1748449326989
+node-00 AppendEntries reply: success=true, term=1, now at 1748449326989
+node-00 All peers responded to AppendEntries
+[map[currentTerm:1 id:node-00 lastElectionReset:1748449326984 leaderId:node-00 state:Leader votedFor:node-00] map[currentTerm:1 id:node-01 lastElectionReset:1748449326988 leaderId:node-00 state:Follower votedFor:node-00] map[currentTerm:1 id:node-02 lastElectionReset:1748449326988 leaderId:node-00 state:Follower votedFor:node-00]]
+node-00 Stop: state= Leader
+node-01 Stop: state= Follower
+node-02 Stop: state= Follower
+PASS
+ok  	github.com/okitz/mqtt-log-pipeline/test	0.313s

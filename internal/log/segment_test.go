@@ -13,7 +13,8 @@ func TestSegment(t *testing.T) {
 	defer unmount()
 	tutl.Require_NotNil(t, fs)
 
-	want := &log_v1.Record{Value: []byte("hello world")}
+	value := []byte("hello world")
+	want := &log_v1.Record{Value: value}
 
 	c := Config{}
 	c.Segment.MaxStoreBytes = 1024
@@ -26,7 +27,7 @@ func TestSegment(t *testing.T) {
 	tutl.Require_False(t, s.IsMaxed())
 
 	for i := uint64(0); i < 3; i++ {
-		off, err := s.Append(want)
+		off, err := s.Append(value)
 		tutl.Require_NoError(t, err)
 		tutl.Require_Equal(t, 16+i, off)
 		got, err := s.Read(off)
@@ -34,7 +35,7 @@ func TestSegment(t *testing.T) {
 		tutl.Require_ByteEqual(t, want.Value, got.Value)
 	}
 
-	_, err = s.Append(want)
+	_, err = s.Append(value)
 	tutl.Require_Equal(t, io.EOF, err)
 
 	// maxed index

@@ -11,40 +11,6 @@ import (
 	io "io"
 )
 
-type LogEntry struct {
-	unknownFields []byte
-	Term          uint64 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
-	Index         uint64 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
-	Command       string `protobuf:"bytes,3,opt,name=command,proto3" json:"command,omitempty"`
-}
-
-func (x *LogEntry) Reset() {
-	*x = LogEntry{}
-}
-
-func (*LogEntry) ProtoMessage() {}
-
-func (x *LogEntry) GetTerm() uint64 {
-	if x != nil {
-		return x.Term
-	}
-	return 0
-}
-
-func (x *LogEntry) GetIndex() uint64 {
-	if x != nil {
-		return x.Index
-	}
-	return 0
-}
-
-func (x *LogEntry) GetCommand() string {
-	if x != nil {
-		return x.Command
-	}
-	return ""
-}
-
 // RequestVote RPC
 type RequestVoteRequest struct {
 	unknownFields []byte
@@ -92,6 +58,7 @@ type RequestVoteReply struct {
 	unknownFields []byte
 	Term          uint64 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
 	VoteGranted   bool   `protobuf:"varint,2,opt,name=vote_granted,json=voteGranted,proto3" json:"voteGranted,omitempty"`
+	NodeId        string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"nodeId,omitempty"`
 }
 
 func (x *RequestVoteReply) Reset() {
@@ -112,6 +79,13 @@ func (x *RequestVoteReply) GetVoteGranted() bool {
 		return x.VoteGranted
 	}
 	return false
+}
+
+func (x *RequestVoteReply) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
+	}
+	return ""
 }
 
 // AppendEntries RPC
@@ -178,6 +152,7 @@ type AppendEntriesReply struct {
 	Term          uint64 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
 	Success       bool   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
 	MatchIndex    uint64 `protobuf:"varint,3,opt,name=match_index,json=matchIndex,proto3" json:"matchIndex,omitempty"`
+	NodeId        string `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"nodeId,omitempty"`
 }
 
 func (x *AppendEntriesReply) Reset() {
@@ -207,62 +182,71 @@ func (x *AppendEntriesReply) GetMatchIndex() uint64 {
 	return 0
 }
 
-// MarshalProtoJSON marshals the LogEntry message to JSON.
-func (x *LogEntry) MarshalProtoJSON(s *json.MarshalState) {
-	if x == nil {
-		s.WriteNil()
-		return
+func (x *AppendEntriesReply) GetNodeId() string {
+	if x != nil {
+		return x.NodeId
 	}
-	s.WriteObjectStart()
-	var wroteField bool
-	if x.Term != 0 || s.HasField("term") {
-		s.WriteMoreIf(&wroteField)
-		s.WriteObjectField("term")
-		s.WriteUint64(x.Term)
-	}
-	if x.Index != 0 || s.HasField("index") {
-		s.WriteMoreIf(&wroteField)
-		s.WriteObjectField("index")
-		s.WriteUint64(x.Index)
-	}
-	if x.Command != "" || s.HasField("command") {
-		s.WriteMoreIf(&wroteField)
-		s.WriteObjectField("command")
-		s.WriteString(x.Command)
-	}
-	s.WriteObjectEnd()
+	return ""
 }
 
-// MarshalJSON marshals the LogEntry to JSON.
-func (x *LogEntry) MarshalJSON() ([]byte, error) {
-	return json.DefaultMarshalerConfig.Marshal(x)
+type LogEntry struct {
+	unknownFields []byte
+	Command       string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	Term          uint64 `protobuf:"varint,2,opt,name=term,proto3" json:"term,omitempty"`
 }
 
-// UnmarshalProtoJSON unmarshals the LogEntry message from JSON.
-func (x *LogEntry) UnmarshalProtoJSON(s *json.UnmarshalState) {
-	if s.ReadNil() {
-		return
+func (x *LogEntry) Reset() {
+	*x = LogEntry{}
+}
+
+func (*LogEntry) ProtoMessage() {}
+
+func (x *LogEntry) GetCommand() string {
+	if x != nil {
+		return x.Command
 	}
-	s.ReadObject(func(key string) {
-		switch key {
-		default:
-			s.Skip() // ignore unknown field
-		case "term":
-			s.AddField("term")
-			x.Term = s.ReadUint64()
-		case "index":
-			s.AddField("index")
-			x.Index = s.ReadUint64()
-		case "command":
-			s.AddField("command")
-			x.Command = s.ReadString()
-		}
-	})
+	return ""
 }
 
-// UnmarshalJSON unmarshals the LogEntry from JSON.
-func (x *LogEntry) UnmarshalJSON(b []byte) error {
-	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
+func (x *LogEntry) GetTerm() uint64 {
+	if x != nil {
+		return x.Term
+	}
+	return 0
+}
+
+type CommitEntry struct {
+	unknownFields []byte
+	Command       string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	Index         uint64 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
+	Term          uint64 `protobuf:"varint,3,opt,name=term,proto3" json:"term,omitempty"`
+}
+
+func (x *CommitEntry) Reset() {
+	*x = CommitEntry{}
+}
+
+func (*CommitEntry) ProtoMessage() {}
+
+func (x *CommitEntry) GetCommand() string {
+	if x != nil {
+		return x.Command
+	}
+	return ""
+}
+
+func (x *CommitEntry) GetIndex() uint64 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *CommitEntry) GetTerm() uint64 {
+	if x != nil {
+		return x.Term
+	}
+	return 0
 }
 
 // MarshalProtoJSON marshals the RequestVoteRequest message to JSON.
@@ -349,6 +333,11 @@ func (x *RequestVoteReply) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("voteGranted")
 		s.WriteBool(x.VoteGranted)
 	}
+	if x.NodeId != "" || s.HasField("nodeId") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("nodeId")
+		s.WriteString(x.NodeId)
+	}
 	s.WriteObjectEnd()
 }
 
@@ -372,6 +361,9 @@ func (x *RequestVoteReply) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "vote_granted", "voteGranted":
 			s.AddField("vote_granted")
 			x.VoteGranted = s.ReadBool()
+		case "node_id", "nodeId":
+			s.AddField("node_id")
+			x.NodeId = s.ReadString()
 		}
 	})
 }
@@ -507,6 +499,11 @@ func (x *AppendEntriesReply) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("matchIndex")
 		s.WriteUint64(x.MatchIndex)
 	}
+	if x.NodeId != "" || s.HasField("nodeId") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("nodeId")
+		s.WriteString(x.NodeId)
+	}
 	s.WriteObjectEnd()
 }
 
@@ -533,6 +530,9 @@ func (x *AppendEntriesReply) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "match_index", "matchIndex":
 			s.AddField("match_index")
 			x.MatchIndex = s.ReadUint64()
+		case "node_id", "nodeId":
+			s.AddField("node_id")
+			x.NodeId = s.ReadString()
 		}
 	})
 }
@@ -542,54 +542,112 @@ func (x *AppendEntriesReply) UnmarshalJSON(b []byte) error {
 	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
 }
 
-func (m *LogEntry) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
+// MarshalProtoJSON marshals the LogEntry message to JSON.
+func (x *LogEntry) MarshalProtoJSON(s *json.MarshalState) {
+	if x == nil {
+		s.WriteNil()
+		return
 	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
+	s.WriteObjectStart()
+	var wroteField bool
+	if x.Command != "" || s.HasField("command") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("command")
+		s.WriteString(x.Command)
 	}
-	return dAtA[:n], nil
+	if x.Term != 0 || s.HasField("term") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("term")
+		s.WriteUint64(x.Term)
+	}
+	s.WriteObjectEnd()
 }
 
-func (m *LogEntry) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
+// MarshalJSON marshals the LogEntry to JSON.
+func (x *LogEntry) MarshalJSON() ([]byte, error) {
+	return json.DefaultMarshalerConfig.Marshal(x)
 }
 
-func (m *LogEntry) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
+// UnmarshalProtoJSON unmarshals the LogEntry message from JSON.
+func (x *LogEntry) UnmarshalProtoJSON(s *json.UnmarshalState) {
+	if s.ReadNil() {
+		return
 	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
+	s.ReadObject(func(key string) {
+		switch key {
+		default:
+			s.Skip() // ignore unknown field
+		case "command":
+			s.AddField("command")
+			x.Command = s.ReadString()
+		case "term":
+			s.AddField("term")
+			x.Term = s.ReadUint64()
+		}
+	})
+}
+
+// UnmarshalJSON unmarshals the LogEntry from JSON.
+func (x *LogEntry) UnmarshalJSON(b []byte) error {
+	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
+}
+
+// MarshalProtoJSON marshals the CommitEntry message to JSON.
+func (x *CommitEntry) MarshalProtoJSON(s *json.MarshalState) {
+	if x == nil {
+		s.WriteNil()
+		return
 	}
-	if len(m.Command) > 0 {
-		i -= len(m.Command)
-		copy(dAtA[i:], m.Command)
-		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.Command)))
-		i--
-		dAtA[i] = 0x1a
+	s.WriteObjectStart()
+	var wroteField bool
+	if x.Command != "" || s.HasField("command") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("command")
+		s.WriteString(x.Command)
 	}
-	if m.Index != 0 {
-		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.Index))
-		i--
-		dAtA[i] = 0x10
+	if x.Index != 0 || s.HasField("index") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("index")
+		s.WriteUint64(x.Index)
 	}
-	if m.Term != 0 {
-		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.Term))
-		i--
-		dAtA[i] = 0x8
+	if x.Term != 0 || s.HasField("term") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("term")
+		s.WriteUint64(x.Term)
 	}
-	return len(dAtA) - i, nil
+	s.WriteObjectEnd()
+}
+
+// MarshalJSON marshals the CommitEntry to JSON.
+func (x *CommitEntry) MarshalJSON() ([]byte, error) {
+	return json.DefaultMarshalerConfig.Marshal(x)
+}
+
+// UnmarshalProtoJSON unmarshals the CommitEntry message from JSON.
+func (x *CommitEntry) UnmarshalProtoJSON(s *json.UnmarshalState) {
+	if s.ReadNil() {
+		return
+	}
+	s.ReadObject(func(key string) {
+		switch key {
+		default:
+			s.Skip() // ignore unknown field
+		case "command":
+			s.AddField("command")
+			x.Command = s.ReadString()
+		case "index":
+			s.AddField("index")
+			x.Index = s.ReadUint64()
+		case "term":
+			s.AddField("term")
+			x.Term = s.ReadUint64()
+		}
+	})
+}
+
+// UnmarshalJSON unmarshals the CommitEntry from JSON.
+func (x *CommitEntry) UnmarshalJSON(b []byte) error {
+	return json.DefaultUnmarshalerConfig.Unmarshal(b, x)
 }
 
 func (m *RequestVoteRequest) MarshalVT() (dAtA []byte, err error) {
@@ -676,6 +734,13 @@ func (m *RequestVoteReply) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.NodeId) > 0 {
+		i -= len(m.NodeId)
+		copy(dAtA[i:], m.NodeId)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.NodeId)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.VoteGranted {
 		i--
@@ -797,6 +862,13 @@ func (m *AppendEntriesReply) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.NodeId) > 0 {
+		i -= len(m.NodeId)
+		copy(dAtA[i:], m.NodeId)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.NodeId)))
+		i--
+		dAtA[i] = 0x22
+	}
 	if m.MatchIndex != 0 {
 		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.MatchIndex))
 		i--
@@ -820,24 +892,99 @@ func (m *AppendEntriesReply) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *LogEntry) SizeVT() (n int) {
+func (m *LogEntry) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
-		return 0
+		return nil, nil
 	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LogEntry) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *LogEntry) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
 	var l int
 	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
 	if m.Term != 0 {
-		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Term))
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.Term))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Command) > 0 {
+		i -= len(m.Command)
+		copy(dAtA[i:], m.Command)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.Command)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *CommitEntry) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CommitEntry) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *CommitEntry) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.Term != 0 {
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.Term))
+		i--
+		dAtA[i] = 0x18
 	}
 	if m.Index != 0 {
-		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Index))
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.Index))
+		i--
+		dAtA[i] = 0x10
 	}
-	l = len(m.Command)
-	if l > 0 {
-		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
+	if len(m.Command) > 0 {
+		i -= len(m.Command)
+		copy(dAtA[i:], m.Command)
+		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.Command)))
+		i--
+		dAtA[i] = 0xa
 	}
-	n += len(m.unknownFields)
-	return n
+	return len(dAtA) - i, nil
 }
 
 func (m *RequestVoteRequest) SizeVT() (n int) {
@@ -874,6 +1021,10 @@ func (m *RequestVoteReply) SizeVT() (n int) {
 	}
 	if m.VoteGranted {
 		n += 2
+	}
+	l = len(m.NodeId)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -926,131 +1077,51 @@ func (m *AppendEntriesReply) SizeVT() (n int) {
 	if m.MatchIndex != 0 {
 		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.MatchIndex))
 	}
+	l = len(m.NodeId)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
 
-func (m *LogEntry) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return protobuf_go_lite.ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: LogEntry: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: LogEntry: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Term", wireType)
-			}
-			m.Term = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protobuf_go_lite.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Term |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Index", wireType)
-			}
-			m.Index = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protobuf_go_lite.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Index |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Command", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protobuf_go_lite.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Command = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
+func (m *LogEntry) SizeVT() (n int) {
+	if m == nil {
+		return 0
 	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
+	var l int
+	_ = l
+	l = len(m.Command)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
 	}
-	return nil
+	if m.Term != 0 {
+		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Term))
+	}
+	n += len(m.unknownFields)
+	return n
 }
+
+func (m *CommitEntry) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Command)
+	if l > 0 {
+		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
+	}
+	if m.Index != 0 {
+		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Index))
+	}
+	if m.Term != 0 {
+		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.Term))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
 func (m *RequestVoteRequest) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1259,6 +1330,38 @@ func (m *RequestVoteReply) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.VoteGranted = bool(v != 0)
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
@@ -1557,6 +1660,261 @@ func (m *AppendEntriesReply) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.MatchIndex |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NodeId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *LogEntry) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protobuf_go_lite.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LogEntry: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LogEntry: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Command", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Command = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Term", wireType)
+			}
+			m.Term = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Term |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CommitEntry) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protobuf_go_lite.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CommitEntry: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CommitEntry: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Command", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protobuf_go_lite.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Command = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Index", wireType)
+			}
+			m.Index = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Index |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Term", wireType)
+			}
+			m.Term = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Term |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
