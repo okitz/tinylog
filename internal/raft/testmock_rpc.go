@@ -25,11 +25,11 @@ func NewFakeRPCClient(id string, trp *FakeRPCTransporter) *FakeRPCClient {
 func (c *FakeRPCClient) BroadcastRPC(
 	ctx context.Context,
 	method string,
-	req json.RawMessage,
+	reqParams json.RawMessage,
 ) (<-chan RPCResopnse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.trp.BroadcastTrp(c.id, ctx, method, req)
+	return c.trp.BroadcastTrp(c.id, ctx, method, reqParams)
 }
 
 func (c *FakeRPCClient) CallRPC(
@@ -38,7 +38,9 @@ func (c *FakeRPCClient) CallRPC(
 	method string,
 	reqParams json.RawMessage,
 ) (json.RawMessage, error) {
-	return nil, fmt.Errorf("CallRPC not implemented in FakeRPCClient")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.trp.CallTrp(c.id, targetId, method, reqParams)
 }
 
 func (c *FakeRPCClient) Disconnect() {
@@ -145,6 +147,48 @@ func (f *FakeRPCTransporter) BroadcastTrp(
 		close(ch)
 	}()
 	return ch, nil
+}
+
+func (f *FakeRPCTransporter) CallTrp(
+	from string,
+	targetId string,
+	method string,
+	req json.RawMessage,
+) (json.RawMessage, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	if f.disconnected[from].Load() {
+		return nil, fmt.Errorf("node %s is disconnected", from)
+	}
+	if f.disconnected[targetId].Load() {
+		return nil, fmt.Errorf("target node %s is disconnected", targetId)
+	}
+
+	node, ok := f.nodes[targetId]
+	if !ok {
+		return nil, fmt.Errorf("target node %s not found", targetId)
+	}
+
+	switch method {
+	case "raft.RequestVote":
+		var args raft_v1.RequestVoteRequest
+		_ = args.UnmarshalJSON(req)
+		rep, _ := node.HandleRequestVoteRequest(&args)
+		if rep != nil {
+			return rep.MarshalJSON()
+		}
+
+	case "raft.AppendEntries":
+		var args raft_v1.AppendEntriesRequest
+		_ = args.UnmarshalJSON(req)
+		rep, _ := node.HandleAppendEntriesRequest(&args)
+		if rep != nil {
+			return rep.MarshalJSON()
+		}
+	default:
+		return nil, fmt.Errorf("unknown method: %s", method)
+	}
+	return nil, nil
 }
 
 type FakeRPCResopnse struct {

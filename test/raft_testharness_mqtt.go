@@ -55,7 +55,8 @@ func NewHarness(t *testing.T, n int) *Harness {
 			}
 		}
 
-		raft := raft.NewRaft(nodeId, (*logpkg.Log)(nil), peers, rpcClient)
+		commitChan := make(chan raft_v1.CommitEntry, 100)
+		raft := raft.NewRaft(nodeId, (*logpkg.Log)(nil), peers, rpcClient, commitChan)
 
 		methodNameRV := "raft.RequestVote"
 		rpc.RegisterProtoHandler(

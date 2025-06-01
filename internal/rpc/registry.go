@@ -57,9 +57,9 @@ func makeProtoRPCHandler[Req, Rep protobuf_go_lite.JSONMessage](
 		if err != nil {
 			return nil, fmt.Errorf("failed to handle %s: %w", methodName, err)
 		}
-		if any(rep) == nil {
-			return nil, fmt.Errorf("%s response is nil", methodName)
-		}
+		// if any(rep) == nil {
+		// 	return nil, fmt.Errorf("%s response is nil", methodName)
+		// }
 		return rep.MarshalJSON()
 	}
 }

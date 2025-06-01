@@ -7,6 +7,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
+	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
 
 type stubLog struct{}
@@ -313,4 +314,149 @@ func TestElectionStopLoop(t *testing.T) {
 
 		time.Sleep(time.Millisecond * 150)
 	}
+}
+
+// コマンドのコミットテスト
+func TestRaftCommitOneCommand(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	// リーダーを待機
+	leaderId, _ := h.CheckSingleLeader()
+
+	// リーダーにコマンドを送信
+	isLeader, err := h.SubmitCommand(leaderId, "cmd-test")
+	if err != nil {
+		t.Errorf("failed to submit command: %v", err)
+	}
+	if !isLeader {
+		t.Error("expected node to be leader")
+	}
+
+	time.Sleep(150 * time.Millisecond)
+	// 全ノードでコミットされていることを確認
+	h.CheckCommittedN("cmd-test", 3)
+}
+
+// 非リーダーへのサブミットテスト
+func TestRaftSubmitNonLeaderFails(t *testing.T) {
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	leaderId, _ := h.CheckSingleLeader()
+	nonLeaderId := 0
+	if h.nodeIds[nonLeaderId] == leaderId {
+		nonLeaderId = 1
+	}
+
+	// 非リーダーにコマンドを送信
+	isLeader, err := h.raftNodes[nonLeaderId].Submit("cmd-test")
+	if err == nil {
+		t.Error("expected error when submitting to non-leader")
+	}
+	if isLeader {
+		t.Error("expected node to not be leader")
+	}
+}
+
+// // 複数コマンドのコミットテスト
+func TestRaftCommitMultipleCommands(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	// リーダーを待機
+	leaderId, _ := h.CheckSingleLeader()
+
+	values := []string{"cmd-test-1", "cmd-test-2", "cmd-test-3"}
+	for _, v := range values {
+		isLeader, err := h.SubmitCommand(leaderId, v)
+		if err != nil {
+			t.Errorf("failed to submit command %s: %v", v, err)
+		}
+		if !isLeader {
+			t.Error("expected node to be leader")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	time.Sleep(150 * time.Millisecond)
+	// 全ノードで全てのコマンドがコミットされていることを確認
+	for _, node := range h.raftNodes {
+		if node.commitIndex != uint64(len(values)-1) || !node.hasCommited {
+			t.Errorf("expected commitIndex=%d, got %d", len(values)-1, node.commitIndex)
+		}
+	}
+}
+
+// // ノード切断と再接続時のコミットテスト
+func TestRaftCommitWithDisconnectionAndRecover(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+
+	h := NewHarness(t, 3)
+	defer h.Shutdown()
+
+	leaderId, _ := h.CheckSingleLeader()
+
+	// 最初のコマンドを送信
+	isLeader, err := h.SubmitCommand(leaderId, "cmd-test-1")
+	if err != nil {
+		t.Errorf("failed to submit first command: %v", err)
+	}
+	if !isLeader {
+		t.Error("expected node to be leader")
+	}
+
+	time.Sleep(250 * time.Millisecond)
+	// 全ノードでコミットされていることを確認
+	for _, node := range h.raftNodes {
+		if node.commitIndex != 0 || !node.hasCommited {
+			t.Errorf("expected node.hasCommited=true and node.commitIndex=0, got %v and %d", node.hasCommited, node.commitIndex)
+		}
+	}
+
+	// 1つのノードを切断
+	dPeerId := 0
+	if h.nodeIds[dPeerId] == leaderId {
+		dPeerId = 1
+	}
+	h.DisconnectNode(h.nodeIds[dPeerId])
+	time.Sleep(250 * time.Millisecond)
+
+	// 新しいコマンドを送信
+	isLeader, err = h.SubmitCommand(leaderId, "cmd-test-2")
+	if err != nil {
+		t.Errorf("failed to submit second command: %v", err)
+	}
+	if !isLeader {
+		t.Error("expected node to be leader")
+	}
+
+	time.Sleep(250 * time.Millisecond)
+	// 接続中のノードでのみコミットされていることを確認
+	connectedNodes := 0
+	for _, node := range h.raftNodes {
+		if node.commitIndex == 1 {
+			connectedNodes++
+		}
+	}
+	if connectedNodes != 2 {
+		t.Errorf("expected 2 nodes to have commitIndex=1, got %d", connectedNodes)
+	}
+
+	// 切断したノードを再接続
+	h.ReconnectNode(h.nodeIds[dPeerId])
+
+	// // 全ノードでコミットされていることを確認
+	tutl.WaitForCondition(t, time.Second*10, time.Millisecond*100, func() bool {
+		for _, node := range h.raftNodes {
+			if node.commitIndex != 1 {
+				return false
+			}
+		}
+		return true
+	}, "not all nodes have committed the second command")
 }

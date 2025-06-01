@@ -85,6 +85,7 @@ func TestStoreClose(t *testing.T) {
 	tutl.Require_NotNil(t, fs)
 	tgt := "file1.txt"
 	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	tutl.Require_NoError(t, err)
 	defer f.Close()
 	tutl.Require_NotNil(t, f)
 	tutl.Require_NoError(t, err)
@@ -110,6 +111,9 @@ func TestStoreClose(t *testing.T) {
 func openFile(fs *littlefs.LFS) (size int64, err error) {
 	tgt := "file1.txt"
 	f, err := filesys.OpenFile(fs, tgt, os.O_WRONLY|os.O_CREATE)
+	if err != nil {
+		panic(err)
+	}
 	fi, err := f.Stat()
 	if err != nil {
 		return 0, err

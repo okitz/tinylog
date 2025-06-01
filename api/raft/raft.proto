@@ -10,12 +10,13 @@ message RequestVoteRequest {
   string candidate_id = 2;
   uint64 last_log_index = 3;
   uint64 last_log_term = 4;
+  bool is_log_stored = 5;
 }
 
 message RequestVoteReply {
   uint64 term = 1;
   bool vote_granted = 2;
-  string node_id = 3;
+  // string node_id = 3;
 }
 
 // AppendEntries RPC
@@ -26,13 +27,16 @@ message AppendEntriesRequest {
   uint64 prev_log_term = 4;
   repeated LogEntry entries = 5;
   uint64 leader_commit = 6;
+  bool follower_has_entries = 7;
+  bool leader_has_comitted = 8;
+
 }
 
 message AppendEntriesReply {
   uint64 term = 1;
   bool success = 2;
   uint64 match_index = 3;
-  string node_id = 4;
+  // string node_id = 4;
 }
 
 

@@ -128,6 +128,7 @@ func (c *RPCClient) handleRequest(payload []byte) {
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return
 	}
+	// ここで自身に向けたリクエストを弾く
 	if req.SenderId == c.id {
 		return
 	}

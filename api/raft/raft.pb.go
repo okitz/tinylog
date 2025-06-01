@@ -18,6 +18,7 @@ type RequestVoteRequest struct {
 	CandidateId   string `protobuf:"bytes,2,opt,name=candidate_id,json=candidateId,proto3" json:"candidateId,omitempty"`
 	LastLogIndex  uint64 `protobuf:"varint,3,opt,name=last_log_index,json=lastLogIndex,proto3" json:"lastLogIndex,omitempty"`
 	LastLogTerm   uint64 `protobuf:"varint,4,opt,name=last_log_term,json=lastLogTerm,proto3" json:"lastLogTerm,omitempty"`
+	IsLogStored   bool   `protobuf:"varint,5,opt,name=is_log_stored,json=isLogStored,proto3" json:"isLogStored,omitempty"`
 }
 
 func (x *RequestVoteRequest) Reset() {
@@ -54,11 +55,17 @@ func (x *RequestVoteRequest) GetLastLogTerm() uint64 {
 	return 0
 }
 
+func (x *RequestVoteRequest) GetIsLogStored() bool {
+	if x != nil {
+		return x.IsLogStored
+	}
+	return false
+}
+
 type RequestVoteReply struct {
 	unknownFields []byte
 	Term          uint64 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
-	VoteGranted   bool   `protobuf:"varint,2,opt,name=vote_granted,json=voteGranted,proto3" json:"voteGranted,omitempty"`
-	NodeId        string `protobuf:"bytes,3,opt,name=node_id,json=nodeId,proto3" json:"nodeId,omitempty"`
+	VoteGranted   bool   `protobuf:"varint,2,opt,name=vote_granted,json=voteGranted,proto3" json:"voteGranted,omitempty"` // string node_id = 3;
 }
 
 func (x *RequestVoteReply) Reset() {
@@ -81,22 +88,17 @@ func (x *RequestVoteReply) GetVoteGranted() bool {
 	return false
 }
 
-func (x *RequestVoteReply) GetNodeId() string {
-	if x != nil {
-		return x.NodeId
-	}
-	return ""
-}
-
 // AppendEntries RPC
 type AppendEntriesRequest struct {
-	unknownFields []byte
-	Term          uint64      `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
-	LeaderId      string      `protobuf:"bytes,2,opt,name=leader_id,json=leaderId,proto3" json:"leaderId,omitempty"`
-	PrevLogIndex  uint64      `protobuf:"varint,3,opt,name=prev_log_index,json=prevLogIndex,proto3" json:"prevLogIndex,omitempty"`
-	PrevLogTerm   uint64      `protobuf:"varint,4,opt,name=prev_log_term,json=prevLogTerm,proto3" json:"prevLogTerm,omitempty"`
-	Entries       []*LogEntry `protobuf:"bytes,5,rep,name=entries,proto3" json:"entries,omitempty"`
-	LeaderCommit  uint64      `protobuf:"varint,6,opt,name=leader_commit,json=leaderCommit,proto3" json:"leaderCommit,omitempty"`
+	unknownFields      []byte
+	Term               uint64      `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
+	LeaderId           string      `protobuf:"bytes,2,opt,name=leader_id,json=leaderId,proto3" json:"leaderId,omitempty"`
+	PrevLogIndex       uint64      `protobuf:"varint,3,opt,name=prev_log_index,json=prevLogIndex,proto3" json:"prevLogIndex,omitempty"`
+	PrevLogTerm        uint64      `protobuf:"varint,4,opt,name=prev_log_term,json=prevLogTerm,proto3" json:"prevLogTerm,omitempty"`
+	Entries            []*LogEntry `protobuf:"bytes,5,rep,name=entries,proto3" json:"entries,omitempty"`
+	LeaderCommit       uint64      `protobuf:"varint,6,opt,name=leader_commit,json=leaderCommit,proto3" json:"leaderCommit,omitempty"`
+	FollowerHasEntries bool        `protobuf:"varint,7,opt,name=follower_has_entries,json=followerHasEntries,proto3" json:"followerHasEntries,omitempty"`
+	LeaderHasComitted  bool        `protobuf:"varint,8,opt,name=leader_has_comitted,json=leaderHasComitted,proto3" json:"leaderHasComitted,omitempty"`
 }
 
 func (x *AppendEntriesRequest) Reset() {
@@ -147,12 +149,25 @@ func (x *AppendEntriesRequest) GetLeaderCommit() uint64 {
 	return 0
 }
 
+func (x *AppendEntriesRequest) GetFollowerHasEntries() bool {
+	if x != nil {
+		return x.FollowerHasEntries
+	}
+	return false
+}
+
+func (x *AppendEntriesRequest) GetLeaderHasComitted() bool {
+	if x != nil {
+		return x.LeaderHasComitted
+	}
+	return false
+}
+
 type AppendEntriesReply struct {
 	unknownFields []byte
 	Term          uint64 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
 	Success       bool   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
-	MatchIndex    uint64 `protobuf:"varint,3,opt,name=match_index,json=matchIndex,proto3" json:"matchIndex,omitempty"`
-	NodeId        string `protobuf:"bytes,4,opt,name=node_id,json=nodeId,proto3" json:"nodeId,omitempty"`
+	MatchIndex    uint64 `protobuf:"varint,3,opt,name=match_index,json=matchIndex,proto3" json:"matchIndex,omitempty"` // string node_id = 4;
 }
 
 func (x *AppendEntriesReply) Reset() {
@@ -180,13 +195,6 @@ func (x *AppendEntriesReply) GetMatchIndex() uint64 {
 		return x.MatchIndex
 	}
 	return 0
-}
-
-func (x *AppendEntriesReply) GetNodeId() string {
-	if x != nil {
-		return x.NodeId
-	}
-	return ""
 }
 
 type LogEntry struct {
@@ -277,6 +285,11 @@ func (x *RequestVoteRequest) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("lastLogTerm")
 		s.WriteUint64(x.LastLogTerm)
 	}
+	if x.IsLogStored || s.HasField("isLogStored") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("isLogStored")
+		s.WriteBool(x.IsLogStored)
+	}
 	s.WriteObjectEnd()
 }
 
@@ -306,6 +319,9 @@ func (x *RequestVoteRequest) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "last_log_term", "lastLogTerm":
 			s.AddField("last_log_term")
 			x.LastLogTerm = s.ReadUint64()
+		case "is_log_stored", "isLogStored":
+			s.AddField("is_log_stored")
+			x.IsLogStored = s.ReadBool()
 		}
 	})
 }
@@ -333,11 +349,6 @@ func (x *RequestVoteReply) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("voteGranted")
 		s.WriteBool(x.VoteGranted)
 	}
-	if x.NodeId != "" || s.HasField("nodeId") {
-		s.WriteMoreIf(&wroteField)
-		s.WriteObjectField("nodeId")
-		s.WriteString(x.NodeId)
-	}
 	s.WriteObjectEnd()
 }
 
@@ -361,9 +372,6 @@ func (x *RequestVoteReply) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "vote_granted", "voteGranted":
 			s.AddField("vote_granted")
 			x.VoteGranted = s.ReadBool()
-		case "node_id", "nodeId":
-			s.AddField("node_id")
-			x.NodeId = s.ReadString()
 		}
 	})
 }
@@ -417,6 +425,16 @@ func (x *AppendEntriesRequest) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("leaderCommit")
 		s.WriteUint64(x.LeaderCommit)
 	}
+	if x.FollowerHasEntries || s.HasField("followerHasEntries") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("followerHasEntries")
+		s.WriteBool(x.FollowerHasEntries)
+	}
+	if x.LeaderHasComitted || s.HasField("leaderHasComitted") {
+		s.WriteMoreIf(&wroteField)
+		s.WriteObjectField("leaderHasComitted")
+		s.WriteBool(x.LeaderHasComitted)
+	}
 	s.WriteObjectEnd()
 }
 
@@ -467,6 +485,12 @@ func (x *AppendEntriesRequest) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "leader_commit", "leaderCommit":
 			s.AddField("leader_commit")
 			x.LeaderCommit = s.ReadUint64()
+		case "follower_has_entries", "followerHasEntries":
+			s.AddField("follower_has_entries")
+			x.FollowerHasEntries = s.ReadBool()
+		case "leader_has_comitted", "leaderHasComitted":
+			s.AddField("leader_has_comitted")
+			x.LeaderHasComitted = s.ReadBool()
 		}
 	})
 }
@@ -499,11 +523,6 @@ func (x *AppendEntriesReply) MarshalProtoJSON(s *json.MarshalState) {
 		s.WriteObjectField("matchIndex")
 		s.WriteUint64(x.MatchIndex)
 	}
-	if x.NodeId != "" || s.HasField("nodeId") {
-		s.WriteMoreIf(&wroteField)
-		s.WriteObjectField("nodeId")
-		s.WriteString(x.NodeId)
-	}
 	s.WriteObjectEnd()
 }
 
@@ -530,9 +549,6 @@ func (x *AppendEntriesReply) UnmarshalProtoJSON(s *json.UnmarshalState) {
 		case "match_index", "matchIndex":
 			s.AddField("match_index")
 			x.MatchIndex = s.ReadUint64()
-		case "node_id", "nodeId":
-			s.AddField("node_id")
-			x.NodeId = s.ReadString()
 		}
 	})
 }
@@ -680,6 +696,16 @@ func (m *RequestVoteRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.IsLogStored {
+		i--
+		if m.IsLogStored {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x28
+	}
 	if m.LastLogTerm != 0 {
 		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.LastLogTerm))
 		i--
@@ -735,13 +761,6 @@ func (m *RequestVoteReply) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.NodeId) > 0 {
-		i -= len(m.NodeId)
-		copy(dAtA[i:], m.NodeId)
-		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.NodeId)))
-		i--
-		dAtA[i] = 0x1a
-	}
 	if m.VoteGranted {
 		i--
 		if m.VoteGranted {
@@ -789,6 +808,26 @@ func (m *AppendEntriesRequest) MarshalToSizedBufferVT(dAtA []byte) (int, error) 
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.LeaderHasComitted {
+		i--
+		if m.LeaderHasComitted {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.FollowerHasEntries {
+		i--
+		if m.FollowerHasEntries {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x38
 	}
 	if m.LeaderCommit != 0 {
 		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.LeaderCommit))
@@ -861,13 +900,6 @@ func (m *AppendEntriesReply) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.NodeId) > 0 {
-		i -= len(m.NodeId)
-		copy(dAtA[i:], m.NodeId)
-		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(len(m.NodeId)))
-		i--
-		dAtA[i] = 0x22
 	}
 	if m.MatchIndex != 0 {
 		i = protobuf_go_lite.EncodeVarint(dAtA, i, uint64(m.MatchIndex))
@@ -1006,6 +1038,9 @@ func (m *RequestVoteRequest) SizeVT() (n int) {
 	if m.LastLogTerm != 0 {
 		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.LastLogTerm))
 	}
+	if m.IsLogStored {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1021,10 +1056,6 @@ func (m *RequestVoteReply) SizeVT() (n int) {
 	}
 	if m.VoteGranted {
 		n += 2
-	}
-	l = len(m.NodeId)
-	if l > 0 {
-		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1058,6 +1089,12 @@ func (m *AppendEntriesRequest) SizeVT() (n int) {
 	if m.LeaderCommit != 0 {
 		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.LeaderCommit))
 	}
+	if m.FollowerHasEntries {
+		n += 2
+	}
+	if m.LeaderHasComitted {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -1076,10 +1113,6 @@ func (m *AppendEntriesReply) SizeVT() (n int) {
 	}
 	if m.MatchIndex != 0 {
 		n += 1 + protobuf_go_lite.SizeOfVarint(uint64(m.MatchIndex))
-	}
-	l = len(m.NodeId)
-	if l > 0 {
-		n += 1 + l + protobuf_go_lite.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1240,6 +1273,26 @@ func (m *RequestVoteRequest) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsLogStored", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IsLogStored = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
@@ -1330,38 +1383,6 @@ func (m *RequestVoteReply) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.VoteGranted = bool(v != 0)
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protobuf_go_lite.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.NodeId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
@@ -1555,6 +1576,46 @@ func (m *AppendEntriesRequest) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FollowerHasEntries", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.FollowerHasEntries = bool(v != 0)
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LeaderHasComitted", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protobuf_go_lite.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.LeaderHasComitted = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
@@ -1664,38 +1725,6 @@ func (m *AppendEntriesReply) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NodeId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protobuf_go_lite.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protobuf_go_lite.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.NodeId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protobuf_go_lite.Skip(dAtA[iNdEx:])
