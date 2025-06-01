@@ -8,10 +8,10 @@ import (
 	"time"
 
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
 	logger "github.com/okitz/mqtt-log-pipeline/internal/logger"
 )
 
+// 出力用のロガー (Raftログとは異なることに留意)
 var dlog *logger.Logger
 
 type RState int
@@ -44,7 +44,7 @@ func (s RState) String() string {
 type raftState struct {
 	currentTerm uint64
 	votedFor    string // nil indicates no vote has been cast
-	log         *logpkg.Log
+	log         Log
 	hasCommited bool // true if no commit has been made yet
 	commitIndex uint64
 	lastApplied uint64
@@ -64,7 +64,7 @@ type Raft struct {
 	newCommitReadyChan chan struct{}              // 新しいコミットが準備できたことを通知するチャネル
 }
 
-func newRaftState(log *logpkg.Log, peers []string) *raftState {
+func newRaftState(log Log, peers []string) *raftState {
 	return &raftState{
 		log:         log,
 		currentTerm: 0,
@@ -76,7 +76,7 @@ func newRaftState(log *logpkg.Log, peers []string) *raftState {
 	}
 }
 
-func NewRaft(id string, log *logpkg.Log, peers []string, rpcClt RPCClient, commitChan chan<- raft_v1.CommitEntry) *Raft {
+func NewRaft(id string, log Log, peers []string, rpcClt RPCClient, commitChan chan<- raft_v1.CommitEntry) *Raft {
 	dlog = logger.New(id, logger.DebugLevel)
 	raftState := newRaftState(log, peers)
 	dlog.Info("New Raft instance: id=%s, peers=%v", id, peers)
