@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logger "github.com/okitz/mqtt-log-pipeline/internal/logger"
+	raft_v1 "github.com/okitz/tinylog/api/raft"
+	logger "github.com/okitz/tinylog/internal/logger"
 )
 
 type RState int

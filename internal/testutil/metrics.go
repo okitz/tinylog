@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
+	log_v1 "github.com/okitz/tinylog/api/log"
 )
 
 func RandomMetricsJson(clientID string) string {

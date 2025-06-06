@@ -1,4 +1,4 @@
-module github.com/okitz/mqtt-log-pipeline
+module github.com/okitz/tinylog
 
 go 1.24
 

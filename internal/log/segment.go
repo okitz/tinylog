@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
-	"github.com/okitz/mqtt-log-pipeline/internal/filesys"
+	log_v1 "github.com/okitz/tinylog/api/log"
+	"github.com/okitz/tinylog/internal/filesys"
 	"tinygo.org/x/tinyfs/littlefs"
 )
 

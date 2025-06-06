@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	mqtt "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
+	mqtt "github.com/okitz/tinylog/internal/mqtt"
 )
 
 // MQTTテスト用のモック・インメモリブローカーの実装

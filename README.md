@@ -1,8 +1,8 @@
-# mqtt-log-pipeline
+# tinylog
 
 ## プロジェクト概要
 
-**mqtt-log-pipeline** は、Go/TinyGoで実装されたMQTTベースの分散ログシステムです。  
+**tinylog** は、Go/TinyGoで実装されたMQTTベースの分散ログシステムです。  
 MQTTクライアントとして機能し、以下を並列に実行することでの自律的にデータを蓄積します。
 - Publisherとしてデータをクラスタネットワークに送信
 - Subscriber/Raftノードとしてデータログを安定的に保持
@@ -17,7 +17,7 @@ MQTTクライアントとして機能し、以下を並列に実行すること�
 
 1. **Devcontainerを使う場合**  
    VSCodeで `.devcontainer/devcontainer.json` を参照してコンテナを起動
-   - 作業用の `mqtt-log-app`コンテナと MQTTブローカ `mosquitto`コンテナが同時に起動します
+   - 作業用の `tinylog-app`コンテナと MQTTブローカ `tinylog-mosquitto`コンテナが同時に起動します
    - ポート 1883 から Moquittoに接続
 
 2. **ローカルビルド**

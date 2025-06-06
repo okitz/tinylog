@@ -8,12 +8,12 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	// "github.com/stretchr/testify/require"
-	// raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	// logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
-	// tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
-	// "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
-	// "github.com/okitz/mqtt-log-pipeline/internal/rpc"
-	// "github.com/okitz/mqtt-log-pipeline/internal/raft"
+	// raft_v1 "github.com/okitz/tinylog/api/raft"
+	// logpkg "github.com/okitz/tinylog/internal/log"
+	// tutl "github.com/okitz/tinylog/internal/testutil"
+	// "github.com/okitz/tinylog/internal/mqtt"
+	// "github.com/okitz/tinylog/internal/rpc"
+	// "github.com/okitz/tinylog/internal/raft"
 )
 
 func TestMQTTElectionBasic(t *testing.T) {

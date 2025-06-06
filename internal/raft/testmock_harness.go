@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	raft_v1 "github.com/okitz/tinylog/api/raft"
+	logpkg "github.com/okitz/tinylog/internal/log"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )

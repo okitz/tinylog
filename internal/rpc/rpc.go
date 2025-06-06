@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	mqtt "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
-	raft "github.com/okitz/mqtt-log-pipeline/internal/raft"
+	mqtt "github.com/okitz/tinylog/internal/mqtt"
+	raft "github.com/okitz/tinylog/internal/raft"
 )
 
 const QOS = 2

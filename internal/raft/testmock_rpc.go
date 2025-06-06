@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
+	raft_v1 "github.com/okitz/tinylog/api/raft"
 )
 
 type FakeRPCClient struct {

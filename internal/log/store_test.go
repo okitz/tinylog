@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	filesys "github.com/okitz/mqtt-log-pipeline/internal/filesys"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	filesys "github.com/okitz/tinylog/internal/filesys"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )

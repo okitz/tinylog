@@ -4,8 +4,8 @@ import (
 	"io"
 	"testing"
 
-	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	log_v1 "github.com/okitz/tinylog/api/log"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 )
 
 func TestSegment(t *testing.T) {

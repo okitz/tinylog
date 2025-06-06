@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	filesys "github.com/okitz/mqtt-log-pipeline/internal/filesys"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	filesys "github.com/okitz/tinylog/internal/filesys"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 )
 
 func TestIndex(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 )
 
 func TestLog(t *testing.T) {

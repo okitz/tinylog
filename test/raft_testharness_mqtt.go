@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	logpkg "github.com/okitz/mqtt-log-pipeline/internal/log"
-	mqtt "github.com/okitz/mqtt-log-pipeline/internal/mqtt"
-	"github.com/okitz/mqtt-log-pipeline/internal/raft"
-	"github.com/okitz/mqtt-log-pipeline/internal/rpc"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	raft_v1 "github.com/okitz/tinylog/api/raft"
+	logpkg "github.com/okitz/tinylog/internal/log"
+	mqtt "github.com/okitz/tinylog/internal/mqtt"
+	"github.com/okitz/tinylog/internal/raft"
+	"github.com/okitz/tinylog/internal/rpc"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 	"tinygo.org/x/tinyfs"
 	"tinygo.org/x/tinyfs/littlefs"
 )

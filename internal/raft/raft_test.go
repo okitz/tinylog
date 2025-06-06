@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
-	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	raft_v1 "github.com/okitz/tinylog/api/raft"
+	tutl "github.com/okitz/tinylog/internal/testutil"
 )
 
 // startElection()を直接呼び出したノードがリーダーになることを確認

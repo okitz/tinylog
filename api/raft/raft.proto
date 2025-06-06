@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package raft.v1;
 
-option go_package = "github.com/okitz/mqtt-log-pipeline/api/raft/raft_v1";
+option go_package = "github.com/okitz/tinylog/api/raft/raft_v1";
 
 // RequestVote RPC
 message RequestVoteRequest {
