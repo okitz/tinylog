@@ -2,6 +2,7 @@ package test
 
 import (
 	// "fmt"
+	"fmt"
 	"testing"
 	"time"
 
@@ -46,7 +47,9 @@ func TestElectionLeaderAndAnotherStop(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 
+	fmt.Println("checking for single leader")
 	origLeaderId, _ := h.CheckSingleLeader()
+	fmt.Println("original leader id:", origLeaderId)
 
 	h.StopNode(origLeaderId)
 	otherId := h.nodeIds[0]
@@ -54,7 +57,7 @@ func TestElectionLeaderAndAnotherStop(t *testing.T) {
 		otherId = h.nodeIds[1] // 別のノードを選ぶ
 	}
 	h.StopNode(otherId)
-
+	fmt.Println("stopped leader and another node")
 	time.Sleep(time.Millisecond * 500) // リーダーともう一つのノードが切断されるのを待つ
 	h.CheckNoLeader()
 

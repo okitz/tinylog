@@ -160,7 +160,8 @@ func (f *FakeRPCTransporter) CallTrp(
 	if f.disconnected[from].Load() {
 		return nil, fmt.Errorf("node %s is disconnected", from)
 	}
-	if f.disconnected[targetId].Load() {
+
+	if f.disconnected[targetId] == nil || f.disconnected[targetId].Load() {
 		return nil, fmt.Errorf("target node %s is disconnected", targetId)
 	}
 

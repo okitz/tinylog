@@ -125,7 +125,7 @@ func (h *Harness) GetAllNodeInfos() []map[string]interface{} {
 	return nodeInfos
 }
 
-func (h Harness) CheckSingleLeader() (string, uint64) {
+func (h *Harness) CheckSingleLeader() (string, uint64) {
 	tutl.WaitForCondition(h.t, time.Second*10, time.Millisecond*100, func() bool {
 		nodeInfos := h.GetAllNodeInfos()
 		if len(nodeInfos) == 0 {
@@ -180,7 +180,7 @@ func (h Harness) CheckSingleLeader() (string, uint64) {
 	return currentLeaderId, currentTerm
 }
 
-func (h Harness) CheckNoLeader() {
+func (h *Harness) CheckNoLeader() {
 	for _, node := range h.raftNodes {
 		nodeInfo := node.GetNodeInfo()
 		tutl.Require_NotEqual(h.t, nodeInfo["state"], "Leader")

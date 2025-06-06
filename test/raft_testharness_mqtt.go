@@ -11,7 +11,38 @@ import (
 	"github.com/okitz/mqtt-log-pipeline/internal/raft"
 	"github.com/okitz/mqtt-log-pipeline/internal/rpc"
 	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
+	"tinygo.org/x/tinyfs"
+	"tinygo.org/x/tinyfs/littlefs"
 )
+
+func createTestFS(t *testing.T) *littlefs.LFS {
+	// create/format/mount the filesystem
+	bd := tinyfs.NewMemoryDevice(64, 256, 2048)
+	fs := littlefs.New(bd).Configure(&littlefs.Config{
+		CacheSize:     128,
+		LookaheadSize: 128,
+		BlockCycles:   500,
+	})
+	if err := fs.Format(); err != nil {
+		t.Error("Could not format", err)
+	}
+	if err := fs.Mount(); err != nil {
+		t.Error("Could not mount", err)
+	}
+	// fs.Unmount()
+	return fs
+}
+
+func setupLog(t *testing.T) *logpkg.Log {
+	fs := createTestFS(t)
+	cfg := logpkg.Config{}
+	cfg.Segment.MaxStoreBytes = 1024
+	cfg.Segment.MaxIndexBytes = 1024
+	dir := "tmp"
+	log, err := logpkg.NewLog(fs, dir, cfg)
+	tutl.Require_NoError(t, err)
+	return log
+}
 
 type Harness struct {
 	raftNodes  []*raft.Raft
@@ -33,6 +64,7 @@ func NewHarness(t *testing.T, n int) *Harness {
 	}
 
 	for i, nodeId := range nodeIds {
+		log := setupLog(t)
 		cfg := mqtt.Config{
 			Broker:   "tcp://mosquitto:1883",
 			ClientID: nodeId,
@@ -56,7 +88,7 @@ func NewHarness(t *testing.T, n int) *Harness {
 		}
 
 		commitChan := make(chan raft_v1.CommitEntry, 100)
-		raft := raft.NewRaft(nodeId, (*logpkg.Log)(nil), peers, rpcClient, commitChan)
+		raft := raft.NewRaft(nodeId, log, peers, rpcClient, commitChan)
 
 		methodNameRV := "raft.RequestVote"
 		rpc.RegisterProtoHandler(

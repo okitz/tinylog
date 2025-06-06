@@ -5,17 +5,9 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	log_v1 "github.com/okitz/mqtt-log-pipeline/api/log"
 	raft_v1 "github.com/okitz/mqtt-log-pipeline/api/raft"
 	tutl "github.com/okitz/mqtt-log-pipeline/internal/testutil"
 )
-
-type stubLog struct{}
-
-func (s *stubLog) HighestOffset() (uint64, error) { return 0, nil }
-func (s *stubLog) Read(offset uint64) (*log_v1.Record, error) {
-	return &log_v1.Record{}, nil
-}
 
 // startElection()を直接呼び出したノードがリーダーになることを確認
 func TestClusterElection(t *testing.T) {
@@ -134,6 +126,7 @@ func TestHandleAppendEntriesRequest(t *testing.T) {
 func TestMQTTElectionBasic(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
+
 	// クラスタ初期化直後はリーダーがいない
 	h.CheckNoLeader()
 	// しばらく待つとリーダーが選出される

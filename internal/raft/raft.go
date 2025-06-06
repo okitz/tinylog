@@ -11,9 +11,6 @@ import (
 	logger "github.com/okitz/mqtt-log-pipeline/internal/logger"
 )
 
-// 出力用のロガー (Raftログとは異なることに留意)
-var dlog *logger.Logger
-
 type RState int
 
 const (
@@ -62,6 +59,7 @@ type Raft struct {
 	mu                 sync.Mutex
 	commitChan         chan<- raft_v1.CommitEntry // コミットされたエントリを通知するチャネル
 	newCommitReadyChan chan struct{}              // 新しいコミットが準備できたことを通知するチャネル
+	dlog               *logger.Logger             // 出力用のロガー (Raftログとは異なることに留意)
 }
 
 func newRaftState(log Log, peers []string) *raftState {
@@ -77,9 +75,7 @@ func newRaftState(log Log, peers []string) *raftState {
 }
 
 func NewRaft(id string, log Log, peers []string, rpcClt RPCClient, commitChan chan<- raft_v1.CommitEntry) *Raft {
-	dlog = logger.New(id, logger.DebugLevel)
 	raftState := newRaftState(log, peers)
-	dlog.Info("New Raft instance: id=%s, peers=%v", id, peers)
 	r := &Raft{
 		raftState:          *raftState,
 		Id:                 id,
@@ -88,8 +84,9 @@ func NewRaft(id string, log Log, peers []string, rpcClt RPCClient, commitChan ch
 		rpcClt:             rpcClt,
 		commitChan:         commitChan,
 		newCommitReadyChan: make(chan struct{}, 16),
+		dlog:               logger.New(id, logger.DebugLevel),
 	}
-
+	r.dlog.Info("New Raft instance: id=%s, peers=%v", id, peers)
 	go func() {
 		time.Sleep(time.Duration(100 * time.Millisecond)) // 遅延を追加
 		r.mu.Lock()
@@ -108,7 +105,7 @@ func (r *Raft) Stop() {
 	if r.state == Dead {
 		return
 	}
-	dlog.Info("Stopped, state=%s", r.state)
+	r.dlog.Info("Stopped, state=%s", r.state)
 	r.state = Dead
 	close(r.newCommitReadyChan)
 }
@@ -117,7 +114,7 @@ func (r *Raft) Resume() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state == Dead {
-		dlog.Info("Resumed as Follower")
+		r.dlog.Info("Resumed as Follower")
 		r.newCommitReadyChan = make(chan struct{}, 16)
 		r.state = Follower
 		r.becomeFollower(r.currentTerm)
@@ -146,7 +143,7 @@ func (r *Raft) becomeFollower(term uint64) {
 	r.currentTerm = term
 	r.votedFor = NoVote
 	r.lastElectionReset = time.Now()
-	dlog.Info("become Follower, new term=%d", term)
+	r.dlog.Info("become Follower, new term=%d", term)
 
 	go r.runElectionTimer()
 }
@@ -175,7 +172,7 @@ func (r *Raft) HandleRequestVoteRequest(req *raft_v1.RequestVoteRequest) (*raft_
 	// 	return nil, fmt.Errorf("cannot handle RequestVoteRequest in dead state")
 	// }
 	isLogStored, lastLogIndex, lastLogTerm := r.lastLogIndexAndTerm()
-	dlog.Debug("HandleRequestVoteRequest: term=%d, candidate=%s", req.Term, req.CandidateId)
+	r.dlog.Debug("HandleRequestVoteRequest: term=%d, candidate=%s", req.Term, req.CandidateId)
 
 	if req.Term > r.currentTerm {
 		r.becomeFollower(req.Term)
@@ -194,9 +191,9 @@ func (r *Raft) HandleRequestVoteRequest(req *raft_v1.RequestVoteRequest) (*raft_
 		r.votedFor = req.CandidateId
 		r.lastElectionReset = time.Now()
 		res.VoteGranted = true
-		dlog.Info("Vote granted to candidate=%s", req.CandidateId)
+		r.dlog.Info("Vote granted to candidate=%s", req.CandidateId)
 	} else {
-		dlog.Info("Vote denied for candidate=%s", req.CandidateId)
+		r.dlog.Info("Vote denied for candidate=%s", req.CandidateId)
 	}
 
 	return res, nil
@@ -215,7 +212,7 @@ func (r *Raft) checkAppendEntiresRequestAcceptable(
 	}
 	prevEntry, err := r.readLogEntryAt(req.PrevLogIndex)
 	if err != nil {
-		dlog.Error(err, "Error reading log entry at PrevLogIndex")
+		r.dlog.Error(err, "Error reading log entry at PrevLogIndex")
 		return false
 	}
 	return prevEntry.GetTerm() == req.PrevLogTerm
@@ -227,7 +224,7 @@ func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*r
 	if r.state == Dead {
 		return nil, fmt.Errorf("cannot handle AppendEntriesRequest in dead state")
 	}
-	dlog.Debug("handling AppendEntriesRequest: term=%d, leader=%s", req.Term, req.LeaderId)
+	r.dlog.Debug("handling AppendEntriesRequest: term=%d, leader=%s", req.Term, req.LeaderId)
 	if req.Term > r.currentTerm {
 		r.becomeFollower(req.Term)
 	}
@@ -237,7 +234,7 @@ func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*r
 		Success: false,
 	}
 	if req.Term == r.currentTerm {
-		dlog.Debug("AppendEntriesRequest: same term, processing")
+		r.dlog.Debug("AppendEntriesRequest: same term, processing")
 		if r.state != Follower {
 			r.becomeFollower(req.Term)
 		}
@@ -260,7 +257,7 @@ func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*r
 				}
 				insertEntry, err := r.readLogEntryAt(logInsertIndex)
 				if err != nil {
-					dlog.Error(err, "Error reading log entry at PrevLogIndex")
+					r.dlog.Error(err, "Error reading log entry at PrevLogIndex")
 					return nil, err
 				}
 				if insertEntry.GetTerm() != req.Entries[newEntriesIndex].Term {
@@ -272,22 +269,22 @@ func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*r
 
 			if len(req.Entries) == 0 {
 				// リーダーからのハートビート
-				dlog.Debug("AppendEntriesRequest: empty entries, it's a heartbeat")
+				r.dlog.Debug("AppendEntriesRequest: empty entries, it's a heartbeat")
 			} else {
 				// ログを追加
 				insertingCommands := make([]string, 0, len(req.Entries)-newEntriesIndex)
 				for _, entry := range req.Entries[newEntriesIndex:] {
 					insertingCommands = append(insertingCommands, entry.Command)
 				}
-				dlog.Debug("inserting entries %v from index %d", insertingCommands, logInsertIndex)
+				r.dlog.Debug("inserting entries %v from index %d", insertingCommands, logInsertIndex)
 				for i := newEntriesIndex; i < len(req.Entries); i++ {
 					data, err := req.Entries[i].MarshalVT()
 					if err != nil {
-						dlog.Error(err, "Error writing log entry")
+						r.dlog.Error(err, "Error writing log entry")
 						return nil, err
 					}
 					if _, err = r.log.Append(data); err != nil {
-						dlog.Error(err, "Error appending log entry")
+						r.dlog.Error(err, "Error appending log entry")
 						return nil, err
 					}
 				}
@@ -297,12 +294,12 @@ func (r *Raft) HandleAppendEntriesRequest(req *raft_v1.AppendEntriesRequest) (*r
 			// req.LeaderCommit = r.commitIndex = 0 の場合、noCommitを参照
 			if req.LeaderHasComitted && (!r.hasCommited || req.LeaderCommit > r.commitIndex) {
 				r.commitIndex = min(req.LeaderCommit, r.log.NextIndex()-1)
-				dlog.Debug("setting commitIndex=%d", r.commitIndex)
+				r.dlog.Debug("setting commitIndex=%d", r.commitIndex)
 				r.newCommitReadyChan <- struct{}{}
 			}
 		}
 	} else {
-		dlog.Debug("AppendEntriesRequest: different term, rejecting")
+		r.dlog.Debug("AppendEntriesRequest: different term, rejecting")
 	}
 
 	return rep, nil
@@ -323,7 +320,7 @@ func (r *Raft) runElectionTimer() {
 			return
 		}
 		if time.Since(r.lastElectionReset) >= timeout {
-			dlog.Debug("election timeout (last reset at %d), starting election", r.lastElectionReset.UnixMilli())
+			r.dlog.Debug("election timeout (last reset at %d), starting election", r.lastElectionReset.UnixMilli())
 			r.mu.Unlock()
 			r.startElection()
 			return
@@ -349,7 +346,7 @@ func (r *Raft) startElection() error {
 	r.lastElectionReset = time.Now()
 	voteCount := 1
 	isLogStored, lastLogIndex, lastLogTerm := r.lastLogIndexAndTerm()
-	dlog.Info(r.Id, "starting Election: term=", r.currentTerm)
+	r.dlog.Info("starting Election: term=%d", r.currentTerm)
 
 	req := &raft_v1.RequestVoteRequest{
 		Term:         r.currentTerm,
@@ -378,7 +375,7 @@ func (r *Raft) startElection() error {
 
 		select {
 		case <-ctx.Done():
-			dlog.Debug("waiting for vote timeout")
+			r.dlog.Debug("waiting for vote timeout")
 			go r.runElectionTimer()
 			return ctx.Err()
 		default:
@@ -388,14 +385,14 @@ func (r *Raft) startElection() error {
 				continue
 			}
 			if repErr != nil {
-				dlog.Error(repErr, "Error in RequestVote response")
+				r.dlog.Error(repErr, "Error in RequestVote response")
 				return repErr
 			}
 			rep := &raft_v1.RequestVoteReply{}
 			if err := rep.UnmarshalJSON(repJSON); err != nil {
 				return err
 			}
-			dlog.Debug("Received vote reply: granted=%v", rep.VoteGranted)
+			r.dlog.Debug("Received vote reply: granted=%v", rep.VoteGranted)
 			if rep.Term > r.currentTerm {
 				r.becomeFollower(rep.Term)
 				return nil
@@ -411,7 +408,7 @@ func (r *Raft) startElection() error {
 		}
 
 	}
-	dlog.Debug("No more responses for RequestVote")
+	r.dlog.Debug("No more responses for RequestVote")
 	go r.runElectionTimer()
 	return nil
 }
@@ -421,7 +418,7 @@ func (r *Raft) becomeLeader() error {
 		return fmt.Errorf("cannot become leader in dead state")
 	}
 
-	dlog.Info("become Leader, term=%d", r.currentTerm)
+	r.dlog.Info("become Leader, term=%d", r.currentTerm)
 	r.state = Leader
 	r.leaderId = r.Id
 	for peerIdx := range r.peers {
@@ -435,7 +432,7 @@ func (r *Raft) becomeLeader() error {
 		// リーダーとしてハートビートを送信
 		for {
 			if err := r.sendLeaderHeartbeats(); err != nil {
-				dlog.Error(err, "Error sending leader heartbeats")
+				r.dlog.Error(err, "Error sending leader heartbeats")
 			}
 			<-ticker.C
 
@@ -453,12 +450,12 @@ func (r *Raft) becomeLeader() error {
 func (r *Raft) readLogEntryAt(index uint64) (*raft_v1.LogEntry, error) {
 	rval, err := r.log.Read(index)
 	if err != nil {
-		dlog.Error(err, "Error reading log for AppendEntries")
+		r.dlog.Error(err, "Error reading log for AppendEntries")
 		return nil, err
 	}
 	var entry raft_v1.LogEntry
 	if err := entry.UnmarshalVT(rval.GetValue()); err != nil {
-		dlog.Error(err, "Error unmarshalling log entry")
+		r.dlog.Error(err, "Error unmarshalling log entry")
 		return nil, err
 	}
 	return &entry, nil
@@ -467,14 +464,14 @@ func (r *Raft) readLogEntryAt(index uint64) (*raft_v1.LogEntry, error) {
 func (r *Raft) readLogEntryFrom(index uint64) ([]*raft_v1.LogEntry, error) {
 	records, err := r.log.ReadFrom(index)
 	if err != nil {
-		dlog.Error(err, "Error reading log entries from index %d", index)
+		r.dlog.Error(err, "Error reading log entries from index %d", index)
 		return nil, err
 	}
 	entries := make([]*raft_v1.LogEntry, len(records))
 	for i, record := range records {
 		var entry raft_v1.LogEntry
 		if err := entry.UnmarshalVT(record.GetValue()); err != nil {
-			dlog.Error(err, "Error unmarshalling log entry at index %d", index+uint64(i))
+			r.dlog.Error(err, "Error unmarshalling log entry at index %d", index+uint64(i))
 			return nil, err
 		}
 		entries[i] = &entry
@@ -484,7 +481,7 @@ func (r *Raft) readLogEntryFrom(index uint64) ([]*raft_v1.LogEntry, error) {
 
 func (r *Raft) commitChanSender() error {
 	for range r.newCommitReadyChan {
-		// Find which entries we have to apply.
+		// コミットすべきエントリがあるか確認
 		r.mu.Lock()
 		savedTerm := r.currentTerm
 		savedLastApplied := r.lastApplied
@@ -499,7 +496,7 @@ func (r *Raft) commitChanSender() error {
 		if !r.hasCommited || r.commitIndex > r.lastApplied {
 			readEntries, err := r.readLogEntryFrom(nextApplyIndex)
 			if err != nil {
-				dlog.Error(err, "Error reading log entries for commitChanSender")
+				r.dlog.Error(err, "Error reading log entries for commitChanSender")
 				r.mu.Unlock()
 				return err
 			}
@@ -508,7 +505,7 @@ func (r *Raft) commitChanSender() error {
 			r.hasCommited = true
 		}
 		r.mu.Unlock()
-		dlog.Info("commiting entries=%v, savedLastApplied=%d", entries, savedLastApplied)
+		r.dlog.Info("commiting entries=%v, savedLastApplied=%d", entries, savedLastApplied)
 
 		for i, entry := range entries {
 			r.commitChan <- raft_v1.CommitEntry{
@@ -530,13 +527,13 @@ func (r *Raft) updateCommitIndex() error {
 		nextCommitIndex = 0
 	}
 	if r.log.NextIndex() == 0 || nextCommitIndex >= r.log.NextIndex() {
-		dlog.Debug("No log entries to commit, skipping updateCommitIndex")
+		r.dlog.Debug("No log entries to commit, skipping updateCommitIndex")
 		return nil
 	}
 
 	entries, err := r.readLogEntryFrom(nextCommitIndex)
 	if err != nil {
-		dlog.Error(err, "Error reading log entries for commit index update:")
+		r.dlog.Error(err, "Error reading log entries for commit index update:")
 		return err
 	}
 	HasUpdated := false
@@ -556,7 +553,7 @@ func (r *Raft) updateCommitIndex() error {
 		}
 	}
 	if HasUpdated {
-		dlog.Debug("leader sets commitIndex=%d", r.commitIndex)
+		r.dlog.Debug("leader sets commitIndex=%d", r.commitIndex)
 		r.newCommitReadyChan <- struct{}{}
 	}
 	return nil
@@ -570,7 +567,7 @@ func (r *Raft) sendLeaderHeartbeats() error {
 	}
 	savedCurrentTerm := r.currentTerm
 	r.mu.Unlock()
-	dlog.Debug("sending Leader heartbeats: term=%d ", r.currentTerm)
+	r.dlog.Debug("sending Leader heartbeats: term=%d ", r.currentTerm)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -593,7 +590,7 @@ func (r *Raft) sendLeaderHeartbeats() error {
 				var err error
 				entries, err = r.readLogEntryFrom(ni)
 				if err != nil {
-					dlog.Error(err, "Error reading log entries for AppendEntries")
+					r.dlog.Error(err, "Error reading log entries for AppendEntries")
 					r.mu.Unlock()
 					return
 				}
@@ -612,7 +609,7 @@ func (r *Raft) sendLeaderHeartbeats() error {
 
 			reqJSON, err := req.MarshalJSON()
 			if err != nil {
-				dlog.Error(err, "Error marshalling AppendEntriesRequest")
+				r.dlog.Error(err, "Error marshalling AppendEntriesRequest")
 				r.mu.Unlock()
 				return
 			}
@@ -620,34 +617,34 @@ func (r *Raft) sendLeaderHeartbeats() error {
 
 			repJSON, err := r.rpcClt.CallRPC(ctx, peerId, "raft.AppendEntries", reqJSON)
 			if err != nil {
-				dlog.Warn("Error calling AppendEntries on peer %s: %s", peerId, err)
+				r.dlog.Warn("Error calling AppendEntries on peer %s: %s", peerId, err)
 				return
 			}
 			if len(repJSON) == 0 {
-				dlog.Debug("Empty response from AppendEntries on peer %s", peerId)
+				r.dlog.Debug("Empty response from AppendEntries on peer %s", peerId)
 				return
 			}
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			rep := &raft_v1.AppendEntriesReply{}
 			if err := rep.UnmarshalJSON(repJSON); err != nil {
-				dlog.Error(err, "Error unmarshalling AppendEntriesReply from peer %s", peerId)
+				r.dlog.Error(err, "Error unmarshalling AppendEntriesReply from peer %s", peerId)
 				return
 			}
 			if rep.GetTerm() > savedCurrentTerm {
-				dlog.Debug("Peer %s has higher term %d than current term %d", peerId, rep.GetTerm(), r.currentTerm)
+				r.dlog.Debug("Peer %s has higher term %d than current term %d", peerId, rep.GetTerm(), r.currentTerm)
 				r.becomeFollower(rep.GetTerm())
 				return
 			}
 			if r.state == Leader && rep.GetTerm() == savedCurrentTerm {
 				if rep.GetSuccess() {
-					dlog.Debug("AppendEntries reply from %s: successed, term=%d", peerId, rep.GetTerm())
+					r.dlog.Debug("AppendEntries reply from %s: successed, term=%d", peerId, rep.GetTerm())
 					r.nextIndex[peerIdx] = ni + uint64(len(entries))
 
 					r.updateCommitIndex()
 				} else {
 					r.nextIndex[peerIdx] = ni - 1
-					dlog.Debug("Peer %s rejected AppendEntries with term %d, nextIndex decremented to %d", peerId, rep.GetTerm(), r.nextIndex[peerIdx])
+					r.dlog.Debug("Peer %s rejected AppendEntries with term %d, nextIndex decremented to %d", peerId, rep.GetTerm(), r.nextIndex[peerIdx])
 				}
 			}
 		}(peerId)

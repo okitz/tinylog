@@ -205,10 +205,6 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 	topic := "rpc/" + targetId
 	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
-		c.pendingMux.Lock()
-		close(c.pending[req.RequestId])
-		delete(c.pending, req.RequestId)
-		c.pendingMux.Unlock()
 		return nil, fmt.Errorf("failed to publish request: %w", token.Error())
 	}
 
@@ -270,10 +266,6 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 	topic := "rpc/response/" + c.id
 	token := c.mqtt.Subscribe(topic, QOS, handler)
 	if token.Wait() && token.Error() != nil {
-		c.pendingMux.Lock()
-		close(c.pending[reqId])
-		delete(c.pending, reqId)
-		c.pendingMux.Unlock()
 		return fmt.Errorf("failed to subscribe to responses: %w", token.Error())
 	}
 
@@ -281,10 +273,6 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 		<-ctx.Done()
 		unsubToken := c.mqtt.Unsubscribe(topic)
 		unsubToken.Wait()
-		c.pendingMux.Lock()
-		close(c.pending[reqId])
-		delete(c.pending, reqId)
-		c.pendingMux.Unlock()
 	}()
 	return nil
 }
@@ -323,6 +311,7 @@ func (c *RPCClient) handleResponse(payload []byte, reqId string) {
 	}
 	select {
 	case resCh <- rep:
+		fmt.Printf("Response for request %s sent successfully\n", reqId)
 	default:
 		fmt.Printf("[WARN] repCh full: dropping reply from topic %s", reqId)
 
