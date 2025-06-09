@@ -10,11 +10,13 @@
       "extensions": [
         "golang.go",
         "golangci.golangci-lint",
-        "ms-vscode.go"
+        "ms-vscode.go",
+        "tinygo.vscode-tinygo"
       ],
       "settings": {
         "terminal.integrated.inheritEnv": true,
-        "terminal.integrated.defaultProfile.linux": "bash"  
+        "terminal.integrated.defaultProfile.linux": "bash",
+        // "go.buildTags": "cortexm baremetal linux arm rp2040 rp pico pico-w cyw43439 tinygo purego osusergo math_big_pure_go gc.conservative scheduler.tasks serial.usb"
       }
     }
   }

@@ -55,3 +55,7 @@ api/gen/
 *.wasm
 *.bin
 *.elf
+
+### Wi-Fi module configs ###
+ssid.text
+password.text
