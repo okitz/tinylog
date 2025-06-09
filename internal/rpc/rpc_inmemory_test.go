@@ -10,12 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRPCClient_BroadcastAndHandle(t *testing.T) {
+func TestRPCClient_INMEM_BroadcastAndHandle(t *testing.T) {
 	broker := testutil.NewBroker()
 
 	clientA := NewRPCClient(testutil.NewMockMQTTClient(broker, "A"), "A")
 	clientB := NewRPCClient(testutil.NewMockMQTTClient(broker, "B"), "B")
 
+	if err := clientA.Start(); err != nil {
+		t.Fatalf("clientA.Start failed: %v", err)
+	}
 	clientB.RegisterMethod("echo", func(params json.RawMessage) (json.RawMessage, error) {
 		return params, nil
 	})
@@ -44,7 +47,7 @@ func TestRPCClient_BroadcastAndHandle(t *testing.T) {
 	}
 }
 
-func TestRPCClient_CallRPC(t *testing.T) {
+func TestRPCClient_INMEM_CallRPC(t *testing.T) {
 	broker := testutil.NewBroker()
 
 	clientA := NewRPCClient(testutil.NewMockMQTTClient(broker, "A"), "A")
@@ -82,7 +85,7 @@ func TestRPCClient_CallRPC(t *testing.T) {
 	}
 }
 
-func TestRPCClient_CallRPC_UnregisteredMethod(t *testing.T) {
+func TestRPCClient_INMEM_CallRPC_UnregisteredMethod(t *testing.T) {
 	broker := testutil.NewBroker()
 	clientA := NewRPCClient(testutil.NewMockMQTTClient(broker, "A"), "A")
 	clientB := NewRPCClient(testutil.NewMockMQTTClient(broker, "B"), "B")

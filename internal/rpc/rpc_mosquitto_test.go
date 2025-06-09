@@ -23,7 +23,7 @@ func setupMQTTClient(t *testing.T, clientID string) mqtt.Client {
 	return client
 }
 
-func TestRPCClient_BroadcastAndHandle_MOSQUITTO(t *testing.T) {
+func TestRPCClient_MOSQUITTO_BroadcastAndHandle(t *testing.T) {
 	clientA := NewRPCClient(setupMQTTClient(t, "A"), "A")
 	clientB := NewRPCClient(setupMQTTClient(t, "B"), "B")
 	defer clientA.Disconnect()
@@ -57,7 +57,7 @@ func TestRPCClient_BroadcastAndHandle_MOSQUITTO(t *testing.T) {
 	}
 }
 
-func TestRPCClient_CallRPC_MOSQUITTO(t *testing.T) {
+func TestRPCClient_MOSQUITTO_CallRPC(t *testing.T) {
 	clientA := NewRPCClient(setupMQTTClient(t, "A"), "A")
 	clientB := NewRPCClient(setupMQTTClient(t, "B"), "B")
 	defer clientA.Disconnect()
@@ -95,7 +95,7 @@ func TestRPCClient_CallRPC_MOSQUITTO(t *testing.T) {
 	}
 }
 
-func TestRPCClient_CallRPC_UnregisteredMethod_MOSQUITTO(t *testing.T) {
+func TestRPCClient_MOSQUITTO_CallRPC_UnregisteredMethod(t *testing.T) {
 	clientA := NewRPCClient(setupMQTTClient(t, "A"), "A")
 	clientB := NewRPCClient(setupMQTTClient(t, "B"), "B")
 	defer clientA.Disconnect()

@@ -113,8 +113,8 @@ func (c *RPCClient) subscribeRequests() error {
 	}
 
 	topics := map[string]byte{
-		"rpc/broadcast/#":    QOS,
-		"rpc/" + c.id + "/#": QOS,
+		"rpc/broadcast": QOS,
+		"rpc/" + c.id:   QOS,
 	}
 	token := c.mqtt.SubscribeMultiple(topics, handler)
 	if token.Wait() && token.Error() != nil {
@@ -201,7 +201,7 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 		return nil, err
 	}
 
-	topic := "rpc/" + targetId + "/" + req.RequestId
+	topic := "rpc/" + targetId
 	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		return nil, fmt.Errorf("failed to publish request: %w", token.Error())
@@ -244,7 +244,7 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 	if err := c.subscribeResponses(ctx, req.RequestId); err != nil {
 		return nil, err
 	}
-	topic := "rpc/broadcast/" + req.RequestId
+	topic := "rpc/broadcast"
 	token := c.mqtt.Publish(topic, QOS, false, out)
 
 	cleanup := func() {
