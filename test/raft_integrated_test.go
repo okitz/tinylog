@@ -18,6 +18,7 @@ import (
 )
 
 func TestMQTTElectionBasic(t *testing.T) {
+	// 3つのノードのクラスタを作成
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 	// クラスタ初期化直後はリーダーがいない

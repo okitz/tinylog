@@ -9,5 +9,7 @@ var (
 )
 
 func main() {
-	app.Run(brokerAddr)
+	nodeId := "node-03"
+	peerIds := []string{"node-01", "node-02"}
+	app.Run(brokerAddr, nodeId, peerIds)
 }

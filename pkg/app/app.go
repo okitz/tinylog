@@ -11,7 +11,7 @@ import (
 	"github.com/okitz/tinylog/internal/rpc"
 )
 
-func Run(broker string) {
+func Run(brokerAddr, nodeId string, peerIds []string) {
 	fs, unmount, err := filesys.NewFileSystem()
 	if err != nil {
 		fmt.Println("Error creating filesystem:", err)
@@ -30,10 +30,8 @@ func Run(broker string) {
 	}
 	defer log.Close()
 
-	nodeIds := []string{"node1", "node2", "node3"}
-	nodeId := nodeIds[1]
 	mqttClt, err := mqtt.NewClient(mqtt.Config{
-		Broker:   broker,
+		Broker:   brokerAddr,
 		ClientID: nodeId,
 	})
 	if err != nil {
@@ -42,7 +40,7 @@ func Run(broker string) {
 	}
 	rpcClt := rpc.NewRPCClient(mqttClt, nodeId)
 	commitChan := make(chan raft_v1.CommitEntry, 100)
-	raft.NewRaft(nodeId, log, nodeIds, rpcClt, commitChan)
+	raft.NewRaft(nodeId, log, peerIds, rpcClt, commitChan)
 	select {}
 
 }

@@ -319,7 +319,7 @@ func (c *RPCClient) handleResponse(payload []byte, reqId string) {
 	}
 	select {
 	case resCh <- rep:
-		fmt.Printf("Response for request %s sent successfully\n", reqId)
+		// fmt.Printf("Response for request %s sent successfully\n", reqId)
 	default:
 		fmt.Printf("[WARN] repCh full: dropping reply from topic %s", reqId)
 

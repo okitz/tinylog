@@ -178,7 +178,7 @@ func (h Harness) CheckSingleLeader() (string, uint64) {
 			return false
 		}
 
-		fmt.Println(nodeInfos)
+		// fmt.Println(nodeInfos)
 		return true
 	}, "invalid node status")
 	nodeInfos := h.GetAllNodeInfos()

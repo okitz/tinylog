@@ -368,7 +368,7 @@ func (r *Raft) startElection() error {
 	for {
 		select {
 		case <-ctx.Done():
-			r.dlog.Debug("waiting for vote timeout")
+			r.dlog.Debug("Election context done, stopping election")
 			go r.runElectionTimer()
 			return ctx.Err()
 		case rawRep, ok := <-repCh:
@@ -618,9 +618,7 @@ func (r *Raft) sendLeaderHeartbeats() error {
 			}
 			r.mu.Unlock()
 			// ここで RPC レスポンスを待つ
-			fmt.Println("Waiting for AppendEntries response from peer", peerId)
 			repJSON, err := r.rpcClt.CallRPC(ctx, peerId, "raft.AppendEntries", reqJSON)
-			fmt.Println("Received AppendEntries response from peer", peerId)
 			if err != nil {
 				r.dlog.Warn("Error calling AppendEntries on peer %s: %s", peerId, err)
 				return
@@ -654,9 +652,7 @@ func (r *Raft) sendLeaderHeartbeats() error {
 			}
 		}(peerId)
 	}
-	fmt.Println("Waiting for all AppendEntries responses")
 	wg.Wait()
-	fmt.Println("All AppendEntries responses processed")
 	return nil
 }
 
