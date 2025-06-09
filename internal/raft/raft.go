@@ -365,20 +365,24 @@ func (r *Raft) startElection() error {
 	if repCh, err = r.rpcClt.BroadcastRPC(ctx, "raft.RequestVote", reqJSON); err != nil {
 		return err
 	}
-	for rawRep := range repCh {
-		r.mu.Lock()
-		if r.state != Candidate {
-			r.mu.Unlock()
-			return nil
-		}
-		r.mu.Unlock()
-
+	for {
 		select {
 		case <-ctx.Done():
 			r.dlog.Debug("waiting for vote timeout")
 			go r.runElectionTimer()
 			return ctx.Err()
-		default:
+		case rawRep, ok := <-repCh:
+			if !ok {
+				r.dlog.Debug("No more responses for RequestVote")
+				go r.runElectionTimer()
+				return nil
+			}
+			r.mu.Lock()
+			if r.state != Candidate {
+				r.mu.Unlock()
+				return nil
+			}
+			r.mu.Unlock()
 			repJSON := rawRep.Raw()
 			repErr := rawRep.Error()
 			if len(repJSON) == 0 {
@@ -406,11 +410,7 @@ func (r *Raft) startElection() error {
 				}
 			}
 		}
-
 	}
-	r.dlog.Debug("No more responses for RequestVote")
-	go r.runElectionTimer()
-	return nil
 }
 
 func (r *Raft) becomeLeader() error {
@@ -568,11 +568,14 @@ func (r *Raft) sendLeaderHeartbeats() error {
 	savedCurrentTerm := r.currentTerm
 	r.mu.Unlock()
 	r.dlog.Debug("sending Leader heartbeats: term=%d ", r.currentTerm)
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
+	var wg sync.WaitGroup
 
 	for peerIdx, peerId := range r.peers {
+		wg.Add(1)
 		go func(peerId string) {
+			defer wg.Done()
 			r.mu.Lock()
 			// niの初期値は0
 			ni := r.nextIndex[peerIdx]
@@ -614,8 +617,10 @@ func (r *Raft) sendLeaderHeartbeats() error {
 				return
 			}
 			r.mu.Unlock()
-
+			// ここで RPC レスポンスを待つ
+			fmt.Println("Waiting for AppendEntries response from peer", peerId)
 			repJSON, err := r.rpcClt.CallRPC(ctx, peerId, "raft.AppendEntries", reqJSON)
+			fmt.Println("Received AppendEntries response from peer", peerId)
 			if err != nil {
 				r.dlog.Warn("Error calling AppendEntries on peer %s: %s", peerId, err)
 				return
@@ -649,6 +654,9 @@ func (r *Raft) sendLeaderHeartbeats() error {
 			}
 		}(peerId)
 	}
+	fmt.Println("Waiting for all AppendEntries responses")
+	wg.Wait()
+	fmt.Println("All AppendEntries responses processed")
 	return nil
 }
 

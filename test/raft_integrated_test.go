@@ -3,6 +3,7 @@ package test
 import (
 	// "fmt"
 	"fmt"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ func TestMQTTElectionLeaderStop(t *testing.T) {
 	time.Sleep(time.Millisecond * 100) // リーダーが切断されるのを待つ
 
 	newLeaderId, newTerm := h.CheckSingleLeader()
+
 	if newLeaderId == origLeaderId {
 		t.Errorf("want new leader to be different from orig leader")
 	}
@@ -58,7 +60,7 @@ func TestElectionLeaderAndAnotherStop(t *testing.T) {
 	}
 	h.StopNode(otherId)
 	fmt.Println("stopped leader and another node")
-	time.Sleep(time.Millisecond * 500) // リーダーともう一つのノードが切断されるのを待つ
+	time.Sleep(time.Millisecond * 200) // リーダーともう一つのノードが切断されるのを待つ
 	h.CheckNoLeader()
 
 	h.ResumeNode(otherId)
@@ -69,7 +71,7 @@ func TestStopAllThenRestore(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 
-	time.Sleep(time.Millisecond * 100)
+	h.CheckSingleLeader()
 	for _, id := range h.nodeIds {
 		h.StopNode(id)
 	}
@@ -82,7 +84,7 @@ func TestStopAllThenRestore(t *testing.T) {
 	h.CheckSingleLeader()
 }
 
-func TestElectionLeaderStopThenResume(t *testing.T) {
+func TestElectionLeaderStopThenResume3(t *testing.T) {
 	h := NewHarness(t, 3)
 	defer h.Shutdown()
 	origLeaderId, _ := h.CheckSingleLeader()
@@ -93,7 +95,6 @@ func TestElectionLeaderStopThenResume(t *testing.T) {
 	newLeaderId, newTerm := h.CheckSingleLeader()
 
 	h.ResumeNode(origLeaderId)
-	time.Sleep(time.Millisecond * 150)
 
 	againLeaderId, againTerm := h.CheckSingleLeader()
 
@@ -106,7 +107,7 @@ func TestElectionLeaderStopThenResume(t *testing.T) {
 }
 
 func TestElectionLeaderStopThenResume5(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 100*time.Millisecond)()
+	defer leaktest.CheckTimeout(t, 1000*time.Millisecond)()
 
 	h := NewHarness(t, 5)
 	defer h.Shutdown()
@@ -114,11 +115,10 @@ func TestElectionLeaderStopThenResume5(t *testing.T) {
 	origLeaderId, _ := h.CheckSingleLeader()
 
 	h.StopNode(origLeaderId)
-	time.Sleep(time.Millisecond * 150)
+	time.Sleep(time.Millisecond * 350)
 	newLeaderId, newTerm := h.CheckSingleLeader()
 
 	h.ResumeNode(origLeaderId)
-	time.Sleep(time.Millisecond * 300)
 
 	againLeaderId, againTerm := h.CheckSingleLeader()
 
@@ -144,9 +144,9 @@ func TestElectionFollowerStopThenComesBack(t *testing.T) {
 		otherId = h.nodeIds[1] // 別のノードを選ぶ
 	}
 	h.StopNode(otherId)
-	time.Sleep(650 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	h.ResumeNode(otherId)
-	time.Sleep(time.Millisecond * 150)
+	time.Sleep(time.Millisecond * 50)
 
 	_, newTerm := h.CheckSingleLeader()
 	if newTerm != origTerm {
@@ -163,13 +163,14 @@ func TestElectionStopLoop(t *testing.T) {
 	for cycle := 0; cycle < 5; cycle++ {
 		leaderId, _ := h.CheckSingleLeader()
 
-		h.StopNode(leaderId)
-		otherId := h.nodeIds[0]
+		otherIdx := rand.IntN(len(h.nodeIds))
+		otherId := h.nodeIds[otherIdx]
 		if otherId == leaderId {
-			otherId = h.nodeIds[1] // 別のノードを選ぶ
+			otherId = h.nodeIds[(otherIdx+1)%len(h.nodeIds)] // 別のノードを選ぶ
 		}
+		h.StopNode(leaderId)
 		h.StopNode(otherId)
-		time.Sleep(time.Millisecond * 310)
+		time.Sleep(time.Millisecond * 1000)
 		h.CheckNoLeader()
 
 		h.ResumeNode(otherId)

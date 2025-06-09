@@ -113,8 +113,8 @@ func (c *RPCClient) subscribeRequests() error {
 	}
 
 	topics := map[string]byte{
-		"rpc/broadcast": QOS,
-		"rpc/" + c.id:   QOS,
+		"rpc/broadcast/#":    QOS,
+		"rpc/" + c.id + "/#": QOS,
 	}
 	token := c.mqtt.SubscribeMultiple(topics, handler)
 	if token.Wait() && token.Error() != nil {
@@ -173,7 +173,7 @@ func (c *RPCClient) handleRequest(payload []byte) {
 	}
 	out, _ := json.Marshal(res)
 
-	topic := "rpc/response/" + req.SenderId
+	topic := "rpc/response/" + req.RequestId
 	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		fmt.Printf("Failed to publish response: %s\n", token.Error())
@@ -193,21 +193,19 @@ func (c *RPCClient) CallRPC(ctx context.Context, targetId string, method string,
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	repCh := make(chan raft.RPCResopnse, 1)
+	repCh := make(chan raft.RPCResopnse, 10)
 	c.pendingMux.Lock()
 	c.pending[req.RequestId] = repCh
 	c.pendingMux.Unlock()
-
 	if err := c.subscribeResponses(ctx, req.RequestId); err != nil {
 		return nil, err
 	}
 
-	topic := "rpc/" + targetId
+	topic := "rpc/" + targetId + "/" + req.RequestId
 	token := c.mqtt.Publish(topic, QOS, false, out)
 	if token.Wait() && token.Error() != nil {
 		return nil, fmt.Errorf("failed to publish request: %w", token.Error())
 	}
-
 	select {
 	case res := <-repCh:
 		if res.Error() != nil {
@@ -238,7 +236,7 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	repCh := make(chan raft.RPCResopnse, 1)
+	repCh := make(chan raft.RPCResopnse, 10)
 	c.pendingMux.Lock()
 	c.pending[req.RequestId] = repCh
 	c.pendingMux.Unlock()
@@ -246,15 +244,25 @@ func (c *RPCClient) BroadcastRPC(ctx context.Context, method string, reqParams j
 	if err := c.subscribeResponses(ctx, req.RequestId); err != nil {
 		return nil, err
 	}
-	topic := "rpc/broadcast"
+	topic := "rpc/broadcast/" + req.RequestId
 	token := c.mqtt.Publish(topic, QOS, false, out)
-	if token.Wait() && token.Error() != nil {
+
+	cleanup := func() {
 		c.pendingMux.Lock()
-		close(c.pending[req.RequestId])
-		delete(c.pending, req.RequestId)
+		if ch, ok := c.pending[req.RequestId]; ok {
+			close(ch)
+			delete(c.pending, req.RequestId)
+		}
 		c.pendingMux.Unlock()
+	}
+	if token.Wait() && token.Error() != nil {
+		cleanup()
 		return nil, fmt.Errorf("failed to publish broadcast request: %w", token.Error())
 	}
+	go func() {
+		<-ctx.Done()
+		cleanup()
+	}()
 	return repCh, nil
 }
 
@@ -263,7 +271,7 @@ func (c *RPCClient) subscribeResponses(ctx context.Context, reqId string) error 
 		c.handleResponse(msg.Payload(), reqId)
 	}
 
-	topic := "rpc/response/" + c.id
+	topic := "rpc/response/" + reqId
 	token := c.mqtt.Subscribe(topic, QOS, handler)
 	if token.Wait() && token.Error() != nil {
 		return fmt.Errorf("failed to subscribe to responses: %w", token.Error())

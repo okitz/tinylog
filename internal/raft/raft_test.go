@@ -131,6 +131,7 @@ func TestMQTTElectionBasic(t *testing.T) {
 	h.CheckNoLeader()
 	// しばらく待つとリーダーが選出される
 	h.CheckSingleLeader()
+	time.Sleep(2000 * time.Millisecond)
 }
 
 func TestMQTTElectionLeaderStop(t *testing.T) {

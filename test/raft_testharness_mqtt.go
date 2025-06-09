@@ -159,8 +159,9 @@ func (h Harness) CheckSingleLeader() (string, uint64) {
 		}
 
 		leaderCount := 0
-		for _, info := range nodeInfos {
-			if info["currentTerm"] != currentTerm {
+		for i, info := range nodeInfos {
+			// タームが遅れているノードは無視する
+			if info["state"] == "Dead" || !h.connected[i] {
 				continue
 			}
 			if info["leaderId"] != currentLeaderId {
