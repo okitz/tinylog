@@ -8,7 +8,6 @@ package pico
 
 import (
 	"log/slog"
-	"machine"
 	"math/rand"
 	"net/netip"
 	"time"
@@ -17,35 +16,15 @@ import (
 	"github.com/soypat/seqs/stacks"
 )
 
-var (
-	logger        *slog.Logger
-	loggerHandler *slog.TextHandler
-	Hostname      = []byte("tinygo-mqtt")
-)
-
 const connTimeout = 5 * time.Second
 const tcpbufsize = 2030 // MTU - ethhdr - iphdr - tcphdr
 // Set this address to the server's address.
 // You may run a local comqtt server: https://github.com/wind-c/comqtt
 // build cmd/single, run it and change the IP address to your local server.
-const serverAddrStr = "192.168.0.44:1883"
 
-func SetupWifi(readyCh, disconnectCh chan struct{}) {
-	logger := slog.New(slog.NewTextHandler(machine.Serial, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
-	_, stack, _, err := SetupWithDHCP(SetupConfig{
-		Hostname: string(Hostname),
-		Logger:   logger,
-		TCPPorts: 1, // For HTTP over TCP.
-		UDPPorts: 1, // For DNS.
-	})
+func SetupWifi(stack *stacks.PortStack, logger *slog.Logger, brokerAddr string, readyCh, disconnectCh chan struct{}) {
 	start := time.Now()
-	if err != nil {
-		panic("setup DHCP:" + err.Error())
-	}
-	svAddr, err := netip.ParseAddrPort(serverAddrStr)
+	svAddr, err := netip.ParseAddrPort(brokerAddr)
 	if err != nil {
 		panic("parsing server address:" + err.Error())
 	}

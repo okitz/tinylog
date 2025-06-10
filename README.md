@@ -24,22 +24,31 @@ VSCodeで `.devcontainer/devcontainer.json` を参照してコンテナを起動
 ```bash
 make protoc
 ```
+
 2. **Goバイナリのビルド**
 `cmd/main_amd64.go`をエントリポイントとして `build/amd64/app` がビルドされます。
 ```bash
 # amd64用バイナリをビルド
 make build
 ```
-`tinylog-mosquitto` 以外のMQTTブローカを使う場合、IPアドレスを`BROKER_IP`で指定してください。
+`tinylog-mosquitto` 以外のMQTTブローカを使う場合、IPアドレスを`BROKER_IP` 環境変数で指定してください。
 
+3. **実行**
+```bash
+// クラスタノード数 3, 自ノードID node-00 での実行 (Default)
+./cmd/main_amd64.go
 
-> 複数ノードでの動作確認にはテストコードを走らせてログを見るのがわかりやすいです。
+// クラスタノード数 5, 自ノードID node-01 での実行例
+NODE_INDEX="1" NODE_NUM=5 ./cmd/main_amd64.go
+```
+> 複数ノードでの動作確認にはテストコードを走らせるのが楽です。
 > ```bash
 > go test -v ./test -run TestMQTTElectionBasic
 > ```
 
 ### TinyGo でのビルド (RPI PICO W向け)
-Raspberry Pi Pico W での動作を前提としています（※開発中）。
+Raspberry Pi Pico W での動作を前提としています。
+> ⚠️ マイコン実機上での動作は現在開発中です。
 1. **Protocol Buffers のコード生成** (共通) 
 以下のコマンドで `.proto` ファイルからAPIの型定義を生成
 ```bash
@@ -49,6 +58,7 @@ make protoc
 `internal/pico/` ディレクトリ内に以下のファイルを作成
 - `ssid.text`：接続するWi-FiのSSID
 - `password.text`：対応するパスワード
+
 詳細は依存リポジトリ [soypat/cyw43439](https://github.com/soypat/cyw43439) のREADMEを参照
 
 3. **TinyGoバイナリのビルド**
@@ -57,7 +67,6 @@ MQTTブローカのIPアドレスを `BROKER_IP` 環境変数で指定してく�
 ```bash
 BROKER_IP=x.x.x.x make tinybuild
 ```
-> ⚠️ マイコン実機上での動作は現在開発中です。
 
 
 ## ライセンス

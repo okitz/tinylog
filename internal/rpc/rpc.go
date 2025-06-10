@@ -90,7 +90,6 @@ func (c *RPCClient) RegisterMethod(name string, handler Handler) {
 func (c *RPCClient) Start() error {
 	c.pendingMux.Lock()
 	defer c.pendingMux.Unlock()
-
 	// Clear pending requests
 	for reqId, ch := range c.pending {
 		close(ch)

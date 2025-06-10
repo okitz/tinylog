@@ -11,36 +11,72 @@ import (
 	"github.com/okitz/tinylog/internal/rpc"
 )
 
-func Run(brokerAddr, nodeId string, peerIds []string) {
+func setupLog(cfg logpkg.Config) (*logpkg.Log, error) {
 	fs, unmount, err := filesys.NewFileSystem()
 	if err != nil {
 		fmt.Println("Error creating filesystem:", err)
-		return
+		return nil, err
 	}
 	defer unmount()
 
 	dir := "tmp"
-	c := logpkg.Config{}
-	c.Segment.MaxStoreBytes = 1024
-	c.Segment.MaxIndexBytes = 1024
-	log, err := logpkg.NewLog(fs, dir, c)
+	log, err := logpkg.NewLog(fs, dir, cfg)
 	if err != nil {
 		fmt.Println("Error creating log:", err)
-		return
+		return nil, err
 	}
-	defer log.Close()
+	return log, nil
+}
 
+func setupRaftNode(brokerAddr string, nodeId string, peerIds []string, log *logpkg.Log) (*raft.Raft, error) {
 	mqttClt, err := mqtt.NewClient(mqtt.Config{
 		Broker:   brokerAddr,
 		ClientID: nodeId,
 	})
 	if err != nil {
 		fmt.Println("Error creating MQTT client:", err)
-		return
+		return nil, err
 	}
+
 	rpcClt := rpc.NewRPCClient(mqttClt, nodeId)
 	commitChan := make(chan raft_v1.CommitEntry, 100)
-	raft.NewRaft(nodeId, log, peerIds, rpcClt, commitChan)
-	select {}
+	raftNode := raft.NewRaft(nodeId, log, peerIds, rpcClt, commitChan)
+	rpcClt.Start()
+	methodNameRV := "raft.RequestVote"
+	rpc.RegisterProtoHandler(
+		rpcClt,
+		&raft_v1.RequestVoteRequest{},
+		raftNode.HandleRequestVoteRequest,
+		methodNameRV,
+	)
 
+	methodNameAE := "raft.AppendEntries"
+	rpc.RegisterProtoHandler(
+		rpcClt,
+		&raft_v1.AppendEntriesRequest{},
+		raftNode.HandleAppendEntriesRequest,
+		methodNameAE,
+	)
+
+	return raftNode, nil
+}
+
+func Run(brokerAddr, nodeId string, peerIds []string) {
+	logCfg := logpkg.Config{}
+	logCfg.Segment.MaxStoreBytes = 1024
+	logCfg.Segment.MaxIndexBytes = 1024
+	log, err := setupLog(logCfg)
+	if err != nil {
+		fmt.Println("Error setting up log:", err)
+		return
+	}
+	defer log.Close()
+
+	_, err = setupRaftNode(brokerAddr, nodeId, peerIds, log)
+	if err != nil {
+		fmt.Println("Error setting up Raft node:", err)
+		return
+	}
+
+	select {}
 }

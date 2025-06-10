@@ -5,7 +5,7 @@ PROTOC_GEN := $(GOPATH)/bin/protoc-gen-go-lite
 BINARY=app
 AMD64_OUT := build/amd64/$(BINARY)
 TINYGO_OUT=build/tinygo/$(BINARY).uf2
-BROKER_IP ?= tcp://mosquitto:1883
+BROKER_IP ?= tcp://mosquitto
 
 protoc:
 	protoc --plugin protoc-gen-go-lite="${PROTOC_GEN}" \
@@ -15,11 +15,11 @@ protoc:
 
 build:
 	mkdir -p build/amd64
-	go build -ldflags "-X main.brokerAddr=${BROKER_IP}" -o $(AMD64_OUT) ./cmd
+	go build -o $(AMD64_OUT) ./cmd
 
 tinybuild:
 	mkdir -p build/tinygo
-	tinygo build -ldflags "-X main.brokerAddr=${BROKER_IP}" -o $(TINYGO_OUT) -target=pico-w ./cmd
+	tinygo build -ldflags "-X main.brokerIP=${BROKER_IP}" -o $(TINYGO_OUT) -target pico -stack-size=8kb ./cmd
 
 size:
 	@echo "AMD binary size:"; ls -lh $(AMD64_OUT)
