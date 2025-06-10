@@ -39,7 +39,7 @@ make build
 ./cmd/main_amd64.go
 
 // クラスタノード数 5, 自ノードID node-01 での実行例
-NODE_INDEX="1" NODE_NUM=5 ./cmd/main_amd64.go
+NODE_INDEX=1 NODE_NUM=5 ./cmd/main_amd64.go
 ```
 > 複数ノードでの動作確認にはテストコードを走らせるのが楽です。
 > ```bash

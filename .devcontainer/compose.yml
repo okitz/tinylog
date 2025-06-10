@@ -1,18 +1,15 @@
 
-x-app-base: &app-base
-  build:
-    context: ..
-    dockerfile: .devcontainer/Dockerfile
-  volumes:
-    - ..:/app:cached
-  command: sleep infinity
-  depends_on:
-    - mosquitto
-  tty: true
-
 services:
   app:
-    <<: *app-base
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ..:/app:cached
+    command: sleep infinity
+    depends_on:
+      - mosquitto
+    tty: true
     container_name: tinylog-app
     environment:
       - MQTT_CLIENT_ID=server
